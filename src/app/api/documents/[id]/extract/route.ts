@@ -31,11 +31,14 @@ DŮLEŽITÉ pravidlo pro záporné částky:
 - Dobropisy a storna typicky obsahují záporné částky — je to správné chování, neupravuj znaménko.
 
 DŮLEŽITÉ pravidlo pro quantity u položek (items):
-- items[].quantity je VŽDY hodnota ze sloupce 'ks' nebo 'počet kusů' nebo 'množství v kusech'. Nikdy nepoužívej hodnotu ze sloupce 'Objem' (l, ml, cl) ani '%EPM' ani jiné jednotky.
-- Hledej sloupec který obsahuje celá čísla jako 12, 14, 11 — to jsou kusy.
-- Příklad z faktury: Bombardér 14 IPA → ks=12, objem=1l → quantity musí být 12, ne 1.
-- Objem lahve (0.75l, 1l, 75cl apod.) NENÍ quantity. Objem patří do popisu položky (description).
-- Pro pole items[].quantity VŽDY přečti přesnou číselnou hodnotu z faktury. Nikdy nepoužívej 1 jako výchozí hodnotu pokud na faktuře je uvedeno jiné číslo.
+- items[].quantity musí být hodnota ze sloupce 'ks' (počet kusů k objednání/dodání).
+- Faktury od pivních/vinařských dodavatelů mají sloupce v pořadí: %EPM | Objem | ks | Základní cena | Sleva | ...
+  - Sloupec '%EPM' obsahuje čísla jako 14, 12, 11 (stupně alkoholu) — IGNORUJ, toto NENÍ quantity.
+  - Sloupec 'Objem' obsahuje hodnoty jako 1l, 0.75l (objem lahve) — IGNORUJ, toto NENÍ quantity.
+  - Sloupec 'ks' obsahuje celá čísla jako 6, 5, 3 (počty kusů) — TOTO JE quantity.
+- Příklad: Bombardér 14 IPA → %EPM=14, Objem=1l, ks=6 → quantity musí být 6 (ne 14, ne 1).
+- Příklad: Tryskáč APA → %EPM=12, Objem=0.75l, ks=5 → quantity musí být 5 (ne 12, ne 0.75).
+- Pro pole items[].quantity VŽDY přečti přesnou číselnou hodnotu ze sloupce 'ks'/'počet kusů'/'množství'. Nikdy nepoužívej 1 jako výchozí hodnotu pokud na faktuře je uvedeno jiné číslo.
 - Pouze pokud počet kusů skutečně NENÍ na dokladu uveden a nelze ho odvodit, nastav quantity na 1.`;
 
 export async function POST(
