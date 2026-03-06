@@ -19,6 +19,7 @@ export async function getFakturoidAccessToken(): Promise<string> {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
+        Accept: "application/json",
         "User-Agent": "DokladyAI (support@doklady.ai)",
       },
       body: new URLSearchParams({
