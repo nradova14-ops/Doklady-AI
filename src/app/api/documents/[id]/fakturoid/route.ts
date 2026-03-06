@@ -67,25 +67,21 @@ export async function POST(
   }
 
   // Build the expense payload
+  // supplier_name is required by Fakturoid API — always include it
   const expensePayload: Record<string, unknown> = {
-    supplier_name: data.supplier?.name || null,
-    supplier_registration_no: data.supplier?.ico || null,
-    supplier_vat_no: data.supplier?.dic || null,
-    supplier_street: data.supplier?.address || null,
-    original_number: data.invoice_number || null,
-    variable_symbol: data.variable_symbol || null,
-    issued_on: data.issue_date || null,
-    due_on: data.due_date || null,
+    supplier_name: data.supplier?.name || "Neznámý dodavatel",
     currency: data.currency || "CZK",
     lines,
   };
 
-  // Remove null values to avoid API validation issues
-  for (const key of Object.keys(expensePayload)) {
-    if (expensePayload[key] === null) {
-      delete expensePayload[key];
-    }
-  }
+  // Optional fields — only include if present
+  if (data.supplier?.ico) expensePayload.supplier_registration_no = data.supplier.ico;
+  if (data.supplier?.dic) expensePayload.supplier_vat_no = data.supplier.dic;
+  if (data.supplier?.address) expensePayload.supplier_street = data.supplier.address;
+  if (data.invoice_number) expensePayload.original_number = data.invoice_number;
+  if (data.variable_symbol) expensePayload.variable_symbol = data.variable_symbol;
+  if (data.issue_date) expensePayload.issued_on = data.issue_date;
+  if (data.due_date) expensePayload.due_on = data.due_date;
 
   try {
     // Obtain OAuth access token via Client Credentials flow
