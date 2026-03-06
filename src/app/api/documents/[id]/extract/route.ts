@@ -14,15 +14,21 @@ Vytěž tato pole (pokud nejsou na dokladu, nastav null):
 - invoice_number: číslo dokladu
 - issue_date: datum vystavení (formát YYYY-MM-DD)
 - due_date: datum splatnosti (formát YYYY-MM-DD)
-- total_amount: celková částka včetně DPH (číslo)
+- total_amount: celková částka včetně DPH (číslo, může být záporné u dobropisů)
 - currency: měna (výchozí CZK)
-- vat_base: základ daně (číslo)
-- vat_amount: výše DPH (číslo)
+- vat_base: základ daně (číslo, může být záporné)
+- vat_amount: výše DPH (číslo, může být záporné)
 - vat_rate: sazba DPH v % (číslo)
 - bank_account: číslo účtu ve formátu XXXXXXXXX/XXXX
 - variable_symbol: variabilní symbol
 - items: pole položek [{ description, quantity, unit_price, total }]
-- notes: ostatní relevantní poznámky`;
+- notes: ostatní relevantní poznámky
+
+DŮLEŽITÉ pravidlo pro záporné částky:
+- Pokud je na dokladu uvedena záporná hodnota (např. -24.79, −100.00), ZACHOVEJ záporné znaménko.
+- Pole unit_price a total u položek (items) MOHOU být záporná čísla. Neměň je na kladné.
+- Totéž platí pro total_amount, vat_base a vat_amount — pokud jsou na dokladu záporné, vrať je jako záporné.
+- Dobropisy a storna typicky obsahují záporné částky — je to správné chování, neupravuj znaménko.`;
 
 export async function POST(
   _request: Request,
