@@ -91,6 +91,8 @@ export async function POST(
     // Obtain OAuth access token via Client Credentials flow
     const accessToken = await getFakturoidAccessToken();
 
+    console.log("[Fakturoid] Expense payload:", JSON.stringify(expensePayload, null, 2));
+
     const response = await fetch(
       `https://app.fakturoid.cz/api/v3/accounts/${accountSlug}/expenses.json`,
       {
@@ -105,20 +107,22 @@ export async function POST(
       }
     );
 
+    const responseBody = await response.text();
+    console.log("[Fakturoid] Expenses API status:", response.status);
+    console.log("[Fakturoid] Expenses API response:", responseBody);
+
     if (!response.ok) {
-      const errorBody = await response.text();
-      console.error("Fakturoid API error:", response.status, errorBody);
       return NextResponse.json(
         {
           error: "Fakturoid API request failed",
           status: response.status,
-          details: errorBody,
+          details: responseBody,
         },
         { status: response.status }
       );
     }
 
-    const expense = await response.json();
+    const expense = JSON.parse(responseBody);
 
     return NextResponse.json({
       success: true,
@@ -126,7 +130,7 @@ export async function POST(
       expense_url: `https://app.fakturoid.cz/${accountSlug}/expenses/${expense.id}`,
     });
   } catch (err) {
-    console.error("Fakturoid send error:", err);
+    console.error("[Fakturoid] Send error:", err);
     return NextResponse.json(
       { error: "Failed to send to Fakturoid" },
       { status: 500 }

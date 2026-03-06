@@ -29,14 +29,17 @@ export async function getFakturoidAccessToken(): Promise<string> {
     }
   );
 
+  const responseBody = await response.text();
+  console.log("[Fakturoid OAuth] Status:", response.status);
+  console.log("[Fakturoid OAuth] Response body:", responseBody);
+
   if (!response.ok) {
-    const body = await response.text();
     throw new Error(
-      `Fakturoid OAuth failed (${response.status}): ${body}`
+      `Fakturoid OAuth failed (${response.status}): ${responseBody}`
     );
   }
 
-  const data = await response.json();
+  const data = JSON.parse(responseBody);
 
   cachedToken = {
     access_token: data.access_token,
