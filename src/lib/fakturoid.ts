@@ -81,11 +81,21 @@ export async function findSubjectByIco(
 
   const subjects = JSON.parse(body);
   if (Array.isArray(subjects) && subjects.length > 0) {
-    console.log("[Fakturoid DEBUG] Subjects found for IČO", ico, "- count:", subjects.length);
+    console.log("[Fakturoid DEBUG] Subjects returned for IČO", ico, "- count:", subjects.length);
     subjects.forEach((s: { id: number; name?: string; registration_no?: string }, i: number) => {
       console.log(`[Fakturoid DEBUG]   subject[${i}]: id=${s.id}, name="${s.name}", registration_no="${s.registration_no}"`);
     });
-    return subjects[0];
+
+    // Fakturoid API may return unrelated subjects — filter by exact IČO match
+    const exactMatch = subjects.find(
+      (s: { registration_no?: string }) => s.registration_no === ico
+    );
+    if (exactMatch) {
+      console.log("[Fakturoid DEBUG] Exact IČO match found: id=", exactMatch.id, "name=", exactMatch.name);
+      return exactMatch;
+    }
+    console.log("[Fakturoid DEBUG] No exact IČO match among returned subjects — will create new");
+    return null;
   }
   console.log("[Fakturoid DEBUG] No subjects found for IČO:", ico);
   return null;
