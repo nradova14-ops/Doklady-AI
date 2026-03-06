@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { getFakturoidAccessToken } from "@/lib/fakturoid";
 
 export async function POST(
   _request: Request,
@@ -15,10 +16,9 @@ export async function POST(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const apiToken = process.env.FAKTUROID_API_TOKEN;
   const accountSlug = process.env.FAKTUROID_ACCOUNT_SLUG;
 
-  if (!apiToken || !accountSlug) {
+  if (!accountSlug) {
     return NextResponse.json(
       { error: "Fakturoid API is not configured" },
       { status: 500 }
@@ -88,12 +88,15 @@ export async function POST(
   }
 
   try {
+    // Obtain OAuth access token via Client Credentials flow
+    const accessToken = await getFakturoidAccessToken();
+
     const response = await fetch(
       `https://app.fakturoid.cz/api/v3/accounts/${accountSlug}/expenses.json`,
       {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${apiToken}`,
+          Authorization: `Bearer ${accessToken}`,
           "Content-Type": "application/json",
           Accept: "application/json",
           "User-Agent": "DokladyAI (support@doklady.ai)",
