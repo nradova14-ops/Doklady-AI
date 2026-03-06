@@ -28,7 +28,13 @@ DŮLEŽITÉ pravidlo pro záporné částky:
 - Pokud je na dokladu uvedena záporná hodnota (např. -24.79, −100.00), ZACHOVEJ záporné znaménko.
 - Pole unit_price a total u položek (items) MOHOU být záporná čísla. Neměň je na kladné.
 - Totéž platí pro total_amount, vat_base a vat_amount — pokud jsou na dokladu záporné, vrať je jako záporné.
-- Dobropisy a storna typicky obsahují záporné částky — je to správné chování, neupravuj znaménko.`;
+- Dobropisy a storna typicky obsahují záporné částky — je to správné chování, neupravuj znaménko.
+
+DŮLEŽITÉ pravidlo pro quantity u položek (items):
+- Pro pole items[].quantity vždy použij počet kusů (ks) nebo počet balení — nikdy ne objem v litrech (l, ml, cl) ani hmotnost (kg, g).
+- Pokud faktura obsahuje sloupec 'množství' nebo 'počet' nebo 'ks', použij tuto hodnotu.
+- Objem lahve (0.75l, 75cl apod.) NENÍ quantity. Objem patří do popisu položky (description).
+- Pokud počet kusů není na dokladu uveden, nastav quantity na 1.`;
 
 export async function POST(
   _request: Request,
