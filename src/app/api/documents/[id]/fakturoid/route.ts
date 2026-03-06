@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { getFakturoidAccessToken } from "@/lib/fakturoid";
+import {
+  getFakturoidAccessToken,
+  findSubjectByIco,
+  createSubject,
+} from "@/lib/fakturoid";
 
 export async function POST(
   _request: Request,
@@ -84,6 +88,34 @@ export async function POST(
   if (data.due_date) expensePayload.due_on = data.due_date;
 
   try {
+    // 1. Find or create subject (contact) in Fakturoid
+    const supplierName = data.supplier?.name || "Neznámý dodavatel";
+    const supplierIco = data.supplier?.ico;
+
+    let subjectId: number | null = null;
+
+    if (supplierIco) {
+      const existing = await findSubjectByIco(accountSlug, supplierIco);
+      if (existing) {
+        subjectId = existing.id;
+        console.log("[Fakturoid] Found existing subject:", subjectId);
+      }
+    }
+
+    if (!subjectId) {
+      const created = await createSubject(accountSlug, {
+        name: supplierName,
+        registration_no: supplierIco || undefined,
+        vat_no: data.supplier?.dic || undefined,
+        street: data.supplier?.address || undefined,
+      });
+      subjectId = created.id;
+      console.log("[Fakturoid] Created new subject:", subjectId);
+    }
+
+    // 2. Add subject_id to expense payload
+    expensePayload.subject_id = subjectId;
+
     // Obtain OAuth access token via Client Credentials flow
     const accessToken = await getFakturoidAccessToken();
 
