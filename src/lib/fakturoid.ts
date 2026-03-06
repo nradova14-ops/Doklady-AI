@@ -80,7 +80,15 @@ export async function findSubjectByIco(
   if (!response.ok) return null;
 
   const subjects = JSON.parse(body);
-  return Array.isArray(subjects) && subjects.length > 0 ? subjects[0] : null;
+  if (Array.isArray(subjects) && subjects.length > 0) {
+    console.log("[Fakturoid DEBUG] Subjects found for IČO", ico, "- count:", subjects.length);
+    subjects.forEach((s: { id: number; name?: string; registration_no?: string }, i: number) => {
+      console.log(`[Fakturoid DEBUG]   subject[${i}]: id=${s.id}, name="${s.name}", registration_no="${s.registration_no}"`);
+    });
+    return subjects[0];
+  }
+  console.log("[Fakturoid DEBUG] No subjects found for IČO:", ico);
+  return null;
 }
 
 /**

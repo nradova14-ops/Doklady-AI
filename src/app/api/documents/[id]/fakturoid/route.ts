@@ -50,6 +50,12 @@ export async function POST(
 
   const data = doc.extracted_data;
 
+  // DEBUG: Log supplier vs customer data from extraction
+  console.log("[Fakturoid DEBUG] extracted_data.supplier:", JSON.stringify(data.supplier, null, 2));
+  console.log("[Fakturoid DEBUG] extracted_data.customer:", JSON.stringify(data.customer, null, 2));
+  console.log("[Fakturoid DEBUG] supplier.ico (IČO used for search):", data.supplier?.ico ?? "MISSING");
+  console.log("[Fakturoid DEBUG] customer.ico (should NOT be used):", data.customer?.ico ?? "MISSING");
+
   // Build expense lines from extracted items
   // Fakturoid expects numeric values for quantity and unit_price
   const lines = (data.items || []).map(
@@ -96,15 +102,29 @@ export async function POST(
     // Uses supplier (dodavatel) data, NOT customer (odběratel)
     let subjectId: number | null = null;
 
+    console.log("[Fakturoid DEBUG] === SUBJECT SEARCH START ===");
+    console.log("[Fakturoid DEBUG] supplier.ico value:", JSON.stringify(supplier.ico));
+    console.log("[Fakturoid DEBUG] supplier.name value:", JSON.stringify(supplier.name));
+
     if (supplier.ico) {
+      console.log("[Fakturoid DEBUG] Searching Fakturoid subjects by IČO:", supplier.ico);
       const existing = await findSubjectByIco(accountSlug, supplier.ico);
+      console.log("[Fakturoid DEBUG] findSubjectByIco result:", JSON.stringify(existing, null, 2));
       if (existing) {
         subjectId = existing.id;
-        console.log("[Fakturoid] Found existing subject:", subjectId);
+        console.log("[Fakturoid DEBUG] Using EXISTING subject_id:", subjectId);
       }
+    } else {
+      console.log("[Fakturoid DEBUG] No supplier.ico — skipping search, will create new subject");
     }
 
     if (!subjectId) {
+      console.log("[Fakturoid DEBUG] No subject found — creating new subject with:", JSON.stringify({
+        name: supplierName,
+        registration_no: supplier.ico || undefined,
+        vat_no: supplier.dic || undefined,
+        street: supplier.address || undefined,
+      }, null, 2));
       const created = await createSubject(accountSlug, {
         name: supplierName,
         registration_no: supplier.ico || undefined,
@@ -112,10 +132,11 @@ export async function POST(
         street: supplier.address || undefined,
       });
       subjectId = created.id;
-      console.log("[Fakturoid] Created new subject:", subjectId);
+      console.log("[Fakturoid DEBUG] Created NEW subject_id:", subjectId);
     }
 
     // 2. Add subject_id to expense payload
+    console.log("[Fakturoid DEBUG] === FINAL subject_id:", subjectId, "===");
     expensePayload.subject_id = subjectId;
 
     // Obtain OAuth access token via Client Credentials flow
