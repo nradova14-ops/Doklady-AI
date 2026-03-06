@@ -31,10 +31,10 @@ DŮLEŽITÉ pravidlo pro záporné částky:
 - Dobropisy a storna typicky obsahují záporné částky — je to správné chování, neupravuj znaménko.
 
 DŮLEŽITÉ pravidlo pro quantity u položek (items):
-- Pro pole items[].quantity vždy použij počet kusů (ks) nebo počet balení — nikdy ne objem v litrech (l, ml, cl) ani hmotnost (kg, g).
-- Pokud faktura obsahuje sloupec 'množství' nebo 'počet' nebo 'ks', použij tuto hodnotu.
+- Pro pole items[].quantity VŽDY přečti přesnou číselnou hodnotu ze sloupce množství/počet/qty na faktuře. Nikdy nepoužívej 1 jako výchozí hodnotu pokud na faktuře je uvedeno jiné číslo. Quantity musí být číslo (může být desetinné, např. 2.5).
+- Používej počet kusů (ks) nebo počet balení — nikdy ne objem v litrech (l, ml, cl) ani hmotnost (kg, g).
 - Objem lahve (0.75l, 75cl apod.) NENÍ quantity. Objem patří do popisu položky (description).
-- Pokud počet kusů není na dokladu uveden, nastav quantity na 1.`;
+- Pouze pokud počet kusů skutečně NENÍ na dokladu uveden a nelze ho odvodit, nastav quantity na 1.`;
 
 export async function POST(
   _request: Request,
