@@ -20,12 +20,11 @@ export async function getFakturoidAccessToken(): Promise<string> {
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
         Accept: "application/json",
+        Authorization: "Basic " + Buffer.from(clientId + ":" + clientSecret).toString("base64"),
         "User-Agent": "DokladyAI (support@doklady.ai)",
       },
       body: new URLSearchParams({
         grant_type: "client_credentials",
-        client_id: clientId,
-        client_secret: clientSecret,
       }),
     }
   );
