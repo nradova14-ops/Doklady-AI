@@ -51,12 +51,13 @@ export async function POST(
   const data = doc.extracted_data;
 
   // Build expense lines from extracted items
+  // Fakturoid expects numeric values for quantity and unit_price
   const lines = (data.items || []).map(
     (item: { description: string | null; quantity: number | null; unit_price: number | null }) => ({
       name: item.description || "Položka",
-      quantity: item.quantity?.toString() || "1",
-      unit_price: item.unit_price?.toString() || "0",
-      vat_rate: data.vat_rate?.toString() || "21",
+      quantity: item.quantity != null ? Number(item.quantity) : 1,
+      unit_price: item.unit_price != null ? Number(item.unit_price) : 0,
+      vat_rate: data.vat_rate != null ? Number(data.vat_rate) : 21,
     })
   );
 
@@ -64,24 +65,27 @@ export async function POST(
   if (lines.length === 0 && data.total_amount != null) {
     lines.push({
       name: data.document_type || "Položka",
-      quantity: "1",
-      unit_price: (data.vat_base ?? data.total_amount)?.toString() || "0",
-      vat_rate: data.vat_rate?.toString() || "21",
+      quantity: 1,
+      unit_price: Number(data.vat_base ?? data.total_amount) || 0,
+      vat_rate: data.vat_rate != null ? Number(data.vat_rate) : 21,
     });
   }
 
   // Build the expense payload
-  // supplier_name is required by Fakturoid API — always include it
+  // IMPORTANT: always use data.supplier (dodavatel), NOT data.customer (odběratel)
+  const supplier = data.supplier || {};
+  const supplierName = supplier.name || "Neznámý dodavatel";
+
   const expensePayload: Record<string, unknown> = {
-    supplier_name: data.supplier?.name || "Neznámý dodavatel",
+    supplier_name: supplierName,
     currency: data.currency || "CZK",
     lines,
   };
 
-  // Optional fields — only include if present
-  if (data.supplier?.ico) expensePayload.supplier_registration_no = data.supplier.ico;
-  if (data.supplier?.dic) expensePayload.supplier_vat_no = data.supplier.dic;
-  if (data.supplier?.address) expensePayload.supplier_street = data.supplier.address;
+  // Optional supplier fields — only include if present
+  if (supplier.ico) expensePayload.supplier_registration_no = supplier.ico;
+  if (supplier.dic) expensePayload.supplier_vat_no = supplier.dic;
+  if (supplier.address) expensePayload.supplier_street = supplier.address;
   if (data.invoice_number) expensePayload.original_number = data.invoice_number;
   if (data.variable_symbol) expensePayload.variable_symbol = data.variable_symbol;
   if (data.issue_date) expensePayload.issued_on = data.issue_date;
@@ -89,13 +93,11 @@ export async function POST(
 
   try {
     // 1. Find or create subject (contact) in Fakturoid
-    const supplierName = data.supplier?.name || "Neznámý dodavatel";
-    const supplierIco = data.supplier?.ico;
-
+    // Uses supplier (dodavatel) data, NOT customer (odběratel)
     let subjectId: number | null = null;
 
-    if (supplierIco) {
-      const existing = await findSubjectByIco(accountSlug, supplierIco);
+    if (supplier.ico) {
+      const existing = await findSubjectByIco(accountSlug, supplier.ico);
       if (existing) {
         subjectId = existing.id;
         console.log("[Fakturoid] Found existing subject:", subjectId);
@@ -105,9 +107,9 @@ export async function POST(
     if (!subjectId) {
       const created = await createSubject(accountSlug, {
         name: supplierName,
-        registration_no: supplierIco || undefined,
-        vat_no: data.supplier?.dic || undefined,
-        street: data.supplier?.address || undefined,
+        registration_no: supplier.ico || undefined,
+        vat_no: supplier.dic || undefined,
+        street: supplier.address || undefined,
       });
       subjectId = created.id;
       console.log("[Fakturoid] Created new subject:", subjectId);
