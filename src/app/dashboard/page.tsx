@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Document } from "@/types/database";
 
@@ -10,10 +10,27 @@ export default function DashboardPage() {
   const router = useRouter();
   const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     loadDocuments();
   }, []);
+
+  // Close export menu on outside click
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) {
+        setExportMenuOpen(false);
+      }
+    }
+    if (exportMenuOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [exportMenuOpen]);
 
   async function loadDocuments() {
     const supabase = createClient();
@@ -35,6 +52,63 @@ export default function DashboardPage() {
     await supabase.auth.signOut();
     router.push("/");
     router.refresh();
+  }
+
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    if (selectedIds.size === documents.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(documents.map((d) => d.id)));
+    }
+  }
+
+  async function handleExport(type: "received" | "issued" | "all") {
+    setExportMenuOpen(false);
+    setExporting(true);
+    try {
+      const res = await fetch("/api/documents/export/money-s3", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          document_ids: Array.from(selectedIds),
+          type,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        alert(data.error || "Export se nezdařil.");
+        return;
+      }
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download =
+        res.headers.get("Content-Disposition")?.match(/filename="(.+)"/)?.[1] ||
+        "money-s3-export.xml";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      alert("Chyba při exportu.");
+    } finally {
+      setExporting(false);
+    }
   }
 
   function getStatusBadge(status: string) {
@@ -111,6 +185,61 @@ export default function DashboardPage() {
           Moje doklady
         </h2>
 
+        {/* Export toolbar */}
+        {selectedIds.size > 0 && (
+          <div className="mb-4 flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+            <span className="text-sm font-medium text-slate-700">
+              {selectedIds.size} {selectedIds.size === 1 ? "vybrán" : selectedIds.size < 5 ? "vybrány" : "vybráno"}
+            </span>
+
+            <div className="relative" ref={exportMenuRef}>
+              <button
+                onClick={() => setExportMenuOpen(!exportMenuOpen)}
+                disabled={exporting}
+                className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50 transition-colors flex items-center gap-1.5"
+              >
+                {exporting ? "Exportuji..." : "Exportovat do Money S3"}
+                {!exporting && (
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                    <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+                  </svg>
+                )}
+              </button>
+
+              {exportMenuOpen && (
+                <div className="absolute left-0 top-full mt-1 w-56 rounded-lg border border-slate-200 bg-white py-1 shadow-lg z-10">
+                  <button
+                    onClick={() => handleExport("received")}
+                    className="w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+                  >
+                    Přijaté faktury (PF)
+                  </button>
+                  <button
+                    onClick={() => handleExport("issued")}
+                    className="w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+                  >
+                    Vydané faktury (VF)
+                  </button>
+                  <div className="border-t border-slate-100 my-1" />
+                  <button
+                    onClick={() => handleExport("all")}
+                    className="w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+                  >
+                    Vše
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <button
+              onClick={() => setSelectedIds(new Set())}
+              className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-600 hover:bg-white transition-colors"
+            >
+              Odznačit vše
+            </button>
+          </div>
+        )}
+
         {loading ? (
           <div className="text-center py-12 text-slate-500">
             <div className="animate-spin inline-block w-6 h-6 border-2 border-slate-300 border-t-slate-600 rounded-full mb-3" />
@@ -131,6 +260,14 @@ export default function DashboardPage() {
             <table className="w-full border-collapse">
               <thead>
                 <tr className="border-b border-slate-200 text-left text-sm font-medium text-slate-500">
+                  <th className="pb-3 pr-2 w-10">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.size === documents.length && documents.length > 0}
+                      onChange={toggleSelectAll}
+                      className="rounded border-slate-300 text-slate-800 focus:ring-slate-400 h-4 w-4 cursor-pointer"
+                    />
+                  </th>
                   <th className="pb-3 pr-4">Soubor</th>
                   <th className="pb-3 pr-4">Typ dokladu</th>
                   <th className="pb-3 pr-4">Dodavatel</th>
@@ -143,28 +280,57 @@ export default function DashboardPage() {
                 {documents.map((doc) => (
                   <tr
                     key={doc.id}
-                    onClick={() => router.push(`/documents/${doc.id}`)}
-                    className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer transition-colors"
+                    className={`border-b border-slate-100 hover:bg-slate-50 transition-colors ${
+                      selectedIds.has(doc.id) ? "bg-slate-50" : ""
+                    }`}
                   >
-                    <td className="py-3 pr-4 text-sm font-medium text-slate-900">
+                    <td className="py-3 pr-2">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(doc.id)}
+                        onChange={() => toggleSelect(doc.id)}
+                        className="rounded border-slate-300 text-slate-800 focus:ring-slate-400 h-4 w-4 cursor-pointer"
+                      />
+                    </td>
+                    <td
+                      className="py-3 pr-4 text-sm font-medium text-slate-900 cursor-pointer"
+                      onClick={() => router.push(`/documents/${doc.id}`)}
+                    >
                       {doc.file_name}
                     </td>
-                    <td className="py-3 pr-4 text-sm text-slate-600">
+                    <td
+                      className="py-3 pr-4 text-sm text-slate-600 cursor-pointer"
+                      onClick={() => router.push(`/documents/${doc.id}`)}
+                    >
                       {doc.extracted_data?.document_type || "—"}
                     </td>
-                    <td className="py-3 pr-4 text-sm text-slate-600">
+                    <td
+                      className="py-3 pr-4 text-sm text-slate-600 cursor-pointer"
+                      onClick={() => router.push(`/documents/${doc.id}`)}
+                    >
                       {doc.extracted_data?.supplier?.name || "—"}
                     </td>
-                    <td className="py-3 pr-4 text-sm text-slate-600">
+                    <td
+                      className="py-3 pr-4 text-sm text-slate-600 cursor-pointer"
+                      onClick={() => router.push(`/documents/${doc.id}`)}
+                    >
                       {formatAmount(
                         doc.extracted_data?.total_amount,
                         doc.extracted_data?.currency
                       )}
                     </td>
-                    <td className="py-3 pr-4 text-sm text-slate-600">
+                    <td
+                      className="py-3 pr-4 text-sm text-slate-600 cursor-pointer"
+                      onClick={() => router.push(`/documents/${doc.id}`)}
+                    >
                       {formatDate(doc.created_at)}
                     </td>
-                    <td className="py-3 pr-4">{getStatusBadge(doc.status)}</td>
+                    <td
+                      className="py-3 pr-4 cursor-pointer"
+                      onClick={() => router.push(`/documents/${doc.id}`)}
+                    >
+                      {getStatusBadge(doc.status)}
+                    </td>
                   </tr>
                 ))}
               </tbody>

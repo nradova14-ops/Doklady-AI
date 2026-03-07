@@ -286,6 +286,34 @@ export default function SettingsPage() {
 
         {/* Integrations Tab */}
         {activeTab === "integrations" && (
+          <div className="space-y-6">
+          {/* Money S3 card */}
+          <div className="rounded-lg border border-slate-200 bg-white p-6">
+            <div className="flex items-center gap-2 mb-1">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 text-slate-600">
+                <path fillRule="evenodd" d="M1 2.75A.75.75 0 011.75 2h16.5a.75.75 0 010 1.5H18v8.75A2.75 2.75 0 0115.25 15h-1.072l.798 3.06a.75.75 0 01-1.452.38L13.41 18H6.59l-.114.44a.75.75 0 01-1.452-.38L5.822 15H4.75A2.75 2.75 0 012 12.25V3.5h-.25A.75.75 0 011 2.75zM7.373 15l-.391 1.5h6.037l-.391-1.5H7.372zm.529-3h4.196a.75.75 0 000-1.5H7.902a.75.75 0 000 1.5zM6.902 9h6.196a.75.75 0 000-1.5H6.902a.75.75 0 000 1.5z" clipRule="evenodd" />
+              </svg>
+              <h2 className="text-lg font-semibold text-slate-900">
+                Money S3
+              </h2>
+            </div>
+            <p className="text-sm text-slate-500 mb-4">
+              Export dokladů ve formátu XML kompatibilním s Money S3.
+            </p>
+            <div className="rounded-lg bg-green-50 px-4 py-3 text-sm text-green-800 ring-1 ring-green-200 mb-4">
+              Nevyžaduje konfiguraci — stačí exportovat XML z přehledu dokladů a importovat do Money S3 přes Soubor → Import.
+            </div>
+            <a
+              href="https://www.money.cz/money-s3/podpora"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm font-medium text-slate-600 hover:text-slate-800 transition-colors"
+            >
+              Jak importovat? →
+            </a>
+          </div>
+
+          {/* Fakturoid card */}
           <div className="rounded-lg border border-slate-200 bg-white p-6">
             <div className="flex items-center justify-between mb-1">
               <h2 className="text-lg font-semibold text-slate-900">
@@ -434,6 +462,7 @@ export default function SettingsPage() {
                 </div>
               )}
             </div>
+          </div>
           </div>
         )}
 
