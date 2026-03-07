@@ -62,12 +62,13 @@ export async function POST(
 
   // Build expense lines from extracted items
   // Fakturoid expects numeric values for quantity and unit_price
+  const vatRate = data.vat_rate != null ? Number(data.vat_rate) : 21;
   const lines = (data.items || []).map(
     (item: { description: string | null; quantity: number | null; unit_price: number | null }) => ({
       name: item.description || "Položka",
       quantity: item.quantity != null ? Number(item.quantity) : 1,
-      unit_price: item.unit_price != null ? Number(item.unit_price) : 0,
-      vat_rate: data.vat_rate != null ? Number(data.vat_rate) : 21,
+      unit_price: item.unit_price != null ? Math.round(Number(item.unit_price) * 100) / 100 : 0,
+      vat_rate: vatRate,
     })
   );
 
@@ -76,9 +77,31 @@ export async function POST(
     lines.push({
       name: data.document_type || "Položka",
       quantity: 1,
-      unit_price: Number(data.vat_base ?? data.total_amount) || 0,
-      vat_rate: data.vat_rate != null ? Number(data.vat_rate) : 21,
+      unit_price: Math.round(Number(data.vat_base ?? data.total_amount) * 100) / 100 || 0,
+      vat_rate: vatRate,
     });
+  }
+
+  // Add rounding adjustment line if extracted total differs from computed total
+  // Fakturoid computes total from lines, so we add a "Zaokrouhlení" line at 0% VAT
+  if (data.total_amount != null && lines.length > 0) {
+    const computedTotal = lines.reduce((sum: number, line: { quantity: number; unit_price: number; vat_rate: number }) => {
+      const lineBase = line.quantity * line.unit_price;
+      const lineVat = Math.round(lineBase * (line.vat_rate / 100) * 100) / 100;
+      return sum + lineBase + lineVat;
+    }, 0);
+    const invoiceTotal = Number(data.total_amount);
+    const roundingDiff = Math.round((invoiceTotal - computedTotal) * 100) / 100;
+
+    if (roundingDiff !== 0 && Math.abs(roundingDiff) < 1) {
+      lines.push({
+        name: "Zaokrouhlení",
+        quantity: 1,
+        unit_price: roundingDiff,
+        vat_rate: 0,
+      });
+      console.log("[Fakturoid] Rounding adjustment:", roundingDiff, "Kč (invoice:", invoiceTotal, "computed:", computedTotal, ")");
+    }
   }
 
   // Build the expense payload
