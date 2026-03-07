@@ -207,7 +207,7 @@ ${seznamy}</MoneyData>`;
 }
 
 export function encodeToWindows1250(xmlString: string): Buffer {
-  // Keep for backward compatibility but no longer used by default
-  const iconv = require("iconv-lite");
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const iconv = require("iconv-lite") as typeof import("iconv-lite");
   return iconv.encode(xmlString, "win1250");
 }
