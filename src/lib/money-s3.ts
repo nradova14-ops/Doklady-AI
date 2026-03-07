@@ -71,7 +71,7 @@ function parseAddress(address: string | null | undefined): {
   return { street: address, city: "", psc };
 }
 
-function generateInvoice(doc: Document, index: number): {
+function generateInvoice(doc: Document): {
   xml: string;
   received: boolean;
 } {
@@ -135,7 +135,7 @@ function generateInvoice(doc: Document, index: number): {
 
   // Element order MUST match Money S3 XSD xs:sequence exactly
   const xml = `    <${tag}>
-      <Doklad>${String(index + 1).padStart(6, "0")}</Doklad>
+      <Doklad></Doklad>
       <Popis>${escapeXml(`Faktura ${data.invoice_number || ""}`.trim())}</Popis>
       <Vystaveno>${formatDate(data.issue_date)}</Vystaveno>
       <DatUcPr>${formatDate(data.issue_date)}</DatUcPr>
@@ -172,7 +172,7 @@ export function generateMoneyS3Xml(
     return type === "received" ? received : !received;
   });
 
-  const results = filtered.map((doc, index) => generateInvoice(doc, index));
+  const results = filtered.map((doc) => generateInvoice(doc));
 
   const receivedInvoices = results
     .filter((r) => r.received && r.xml)
