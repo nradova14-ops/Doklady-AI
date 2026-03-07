@@ -26,7 +26,18 @@ function formatDate(dateStr: string | null | undefined): string {
 
 function isReceivedInvoice(data: ExtractedData): boolean {
   const docType = (data.document_type || "").toLowerCase();
-  return docType.includes("přijat") || docType.includes("prijat");
+  // Explicit "přijatá" / "vydaná" in document_type takes priority
+  if (docType.includes("přijat") || docType.includes("prijat")) return true;
+  if (docType.includes("vydán") || docType.includes("vydan")) return false;
+  // Heuristic: if supplier is filled but customer is empty/missing,
+  // the user received this invoice from a supplier → received (PF).
+  // If customer is filled, the user likely issued it → issued (VF).
+  const hasSupplier = !!data.supplier?.name;
+  const hasCustomer = !!data.customer?.name;
+  if (hasSupplier && !hasCustomer) return true;
+  if (hasCustomer && !hasSupplier) return false;
+  // Default: most uploaded documents are received invoices
+  return true;
 }
 
 function generateFaktura(doc: Document): string {
