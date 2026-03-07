@@ -131,9 +131,6 @@ function generateInvoice(doc: Document): {
   const firma = received ? data.supplier : data.customer;
   const addr = parseAddress(firma?.address);
 
-  // VAT summary at document level
-  const vatBase = data.vat_base ?? 0;
-  const vatAmount = data.vat_amount ?? 0;
   const totalAmount = data.total_amount ?? 0;
 
   // Element order MUST match Money S3 XSD xs:sequence exactly
