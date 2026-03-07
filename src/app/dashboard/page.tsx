@@ -12,6 +12,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const [exportFormat, setExportFormat] = useState<"money-s3" | "isdoc" | null>(null);
   const [exporting, setExporting] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
 
@@ -74,11 +75,12 @@ export default function DashboardPage() {
     }
   }
 
-  async function handleExport(type: "received" | "issued" | "all") {
+  async function handleExport(format: "money-s3" | "isdoc", type: "received" | "issued" | "all") {
     setExportMenuOpen(false);
+    setExportFormat(null);
     setExporting(true);
     try {
-      const res = await fetch("/api/documents/export/money-s3", {
+      const res = await fetch(`/api/documents/export/${format}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -97,9 +99,10 @@ export default function DashboardPage() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
+      const fallback = format === "isdoc" ? "export.isdoc" : "money-s3-export.xml";
       a.download =
         res.headers.get("Content-Disposition")?.match(/filename="(.+)"/)?.[1] ||
-        "money-s3-export.xml";
+        fallback;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -194,11 +197,11 @@ export default function DashboardPage() {
 
             <div className="relative" ref={exportMenuRef}>
               <button
-                onClick={() => setExportMenuOpen(!exportMenuOpen)}
+                onClick={() => { setExportMenuOpen(!exportMenuOpen); setExportFormat(null); }}
                 disabled={exporting}
                 className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50 transition-colors flex items-center gap-1.5"
               >
-                {exporting ? "Exportuji..." : "Exportovat do Money S3"}
+                {exporting ? "Exportuji..." : "Exportovat"}
                 {!exporting && (
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
                     <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
@@ -206,26 +209,53 @@ export default function DashboardPage() {
                 )}
               </button>
 
-              {exportMenuOpen && (
+              {exportMenuOpen && !exportFormat && (
                 <div className="absolute left-0 top-full mt-1 w-56 rounded-lg border border-slate-200 bg-white py-1 shadow-lg z-10">
                   <button
-                    onClick={() => handleExport("received")}
+                    onClick={() => setExportFormat("money-s3")}
+                    className="w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+                  >
+                    Money S3 (.xml)
+                  </button>
+                  <button
+                    onClick={() => setExportFormat("isdoc")}
+                    className="w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+                  >
+                    ISDOC (.isdoc)
+                  </button>
+                </div>
+              )}
+
+              {exportMenuOpen && exportFormat && (
+                <div className="absolute left-0 top-full mt-1 w-56 rounded-lg border border-slate-200 bg-white py-1 shadow-lg z-10">
+                  <div className="px-4 py-1.5 text-xs font-medium text-slate-400 uppercase tracking-wide">
+                    {exportFormat === "money-s3" ? "Money S3" : "ISDOC"}
+                  </div>
+                  <button
+                    onClick={() => handleExport(exportFormat, "received")}
                     className="w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
                   >
                     Přijaté faktury (PF)
                   </button>
                   <button
-                    onClick={() => handleExport("issued")}
+                    onClick={() => handleExport(exportFormat, "issued")}
                     className="w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
                   >
                     Vydané faktury (VF)
                   </button>
                   <div className="border-t border-slate-100 my-1" />
                   <button
-                    onClick={() => handleExport("all")}
+                    onClick={() => handleExport(exportFormat, "all")}
                     className="w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
                   >
                     Vše
+                  </button>
+                  <div className="border-t border-slate-100 my-1" />
+                  <button
+                    onClick={() => setExportFormat(null)}
+                    className="w-full px-4 py-2 text-left text-xs text-slate-400 hover:bg-slate-50"
+                  >
+                    &larr; Zpět
                   </button>
                 </div>
               )}
