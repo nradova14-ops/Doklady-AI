@@ -71,7 +71,7 @@ function parseAddress(address: string | null | undefined): {
   return { street: address, city: "", psc };
 }
 
-function generateInvoice(doc: Document): {
+function generateInvoice(doc: Document, index: number): {
   xml: string;
   received: boolean;
 } {
@@ -135,14 +135,14 @@ function generateInvoice(doc: Document): {
 
   // Element order MUST match Money S3 XSD xs:sequence exactly
   const xml = `    <${tag}>
-      <Doklad>${escapeXml(data.invoice_number)}</Doklad>
-      <Popis>${escapeXml(data.notes || `Faktura ${data.invoice_number || ""}`.trim())}</Popis>
+      <Doklad>${String(index + 1).padStart(6, "0")}</Doklad>
+      <Popis>${escapeXml(`Faktura ${data.invoice_number || ""}`.trim())}</Popis>
       <Vystaveno>${formatDate(data.issue_date)}</Vystaveno>
       <DatUcPr>${formatDate(data.issue_date)}</DatUcPr>
       <PlnenoDPH>${formatDate(data.issue_date)}</PlnenoDPH>
       <Splatno>${formatDate(data.due_date)}</Splatno>
-      <VarSymbol>${escapeXml(data.variable_symbol)}</VarSymbol>
-      <Celkem>${formatNumber(totalAmount)}</Celkem>
+      <VarSymbol>${escapeXml(data.invoice_number)}</VarSymbol>
+      <Celkem>${formatNumber(Math.round(totalAmount * 100) / 100)}</Celkem>
       <DodOdb>
         <FaktNazev>${escapeXml(firma?.name)}</FaktNazev>
         <ICO>${escapeXml(firma?.ico)}</ICO>
@@ -172,7 +172,7 @@ export function generateMoneyS3Xml(
     return type === "received" ? received : !received;
   });
 
-  const results = filtered.map((doc) => generateInvoice(doc));
+  const results = filtered.map((doc, index) => generateInvoice(doc, index));
 
   const receivedInvoices = results
     .filter((r) => r.received && r.xml)
