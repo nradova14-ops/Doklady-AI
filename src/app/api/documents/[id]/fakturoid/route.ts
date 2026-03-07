@@ -100,6 +100,11 @@ export async function POST(
   if (data.variable_symbol) expensePayload.variable_symbol = data.variable_symbol;
   if (data.issue_date) expensePayload.issued_on = data.issue_date;
   if (data.due_date) expensePayload.due_on = data.due_date;
+  if (data.total_amount != null && data.vat_base != null && data.vat_amount != null) {
+     const calculatedTotal = Number(data.vat_base) + Number(data.vat_amount);
+     const rounding = Math.round((Number(data.total_amount) - calculatedTotal) * 100) / 100;
+     if (rounding !== 0) expensePayload.rounding = rounding;
+  }
 
   try {
     // 1. Find or create subject (contact) in Fakturoid
