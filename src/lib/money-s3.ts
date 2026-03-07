@@ -150,10 +150,10 @@ function generateInvoice(doc: Document): {
       <Proplatit>${formatNumber(totalAmount)}</Proplatit>
       <SouhrnDPH>
         <Zaklad0>0.00</Zaklad0>
-        <Zaklad5>${formatNumber(vatBase)}</Zaklad5>
-        <DPH5>${formatNumber(vatAmount)}</DPH5>
-        <Zaklad22>0.00</Zaklad22>
-        <DPH22>0.00</DPH22>
+        <Zaklad5>0.00</Zaklad5>
+        <DPH5>0.00</DPH5>
+        <Zaklad22>${formatNumber(vatBase)}</Zaklad22>
+        <DPH22>${formatNumber(vatAmount)}</DPH22>
       </SouhrnDPH>
       <Celkem>${formatNumber(totalAmount)}</Celkem>
       <DodOdb>
