@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import {
   getFakturoidAccessToken,
+  getFakturoidCredentials,
   findSubjectByIco,
   createSubject,
 } from "@/lib/fakturoid";
@@ -20,14 +21,17 @@ export async function POST(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const accountSlug = process.env.FAKTUROID_ACCOUNT_SLUG;
-
-  if (!accountSlug) {
+  // Load per-user Fakturoid credentials (DB or ENV fallback)
+  let creds;
+  try {
+    creds = await getFakturoidCredentials(user.id);
+  } catch {
     return NextResponse.json(
-      { error: "Fakturoid API is not configured" },
-      { status: 500 }
+      { error: "Fakturoid není nakonfigurován. Přejdi do Nastavení → Integrace." },
+      { status: 400 }
     );
   }
+  const accountSlug = creds.slug;
 
   // Load document with extracted data
   const { data: doc, error: docError } = await supabase
@@ -108,7 +112,7 @@ export async function POST(
 
     if (supplier.ico) {
       console.log("[Fakturoid DEBUG] Searching Fakturoid subjects by IČO:", supplier.ico);
-      const existing = await findSubjectByIco(accountSlug, supplier.ico);
+      const existing = await findSubjectByIco(accountSlug, supplier.ico, user.id);
       console.log("[Fakturoid DEBUG] findSubjectByIco result:", JSON.stringify(existing, null, 2));
       if (existing) {
         subjectId = existing.id;
@@ -130,7 +134,7 @@ export async function POST(
         registration_no: supplier.ico || undefined,
         vat_no: supplier.dic || undefined,
         street: supplier.address || undefined,
-      });
+      }, user.id);
       subjectId = created.id;
       console.log("[Fakturoid DEBUG] Created NEW subject_id:", subjectId);
     }
@@ -140,7 +144,7 @@ export async function POST(
     expensePayload.subject_id = subjectId;
 
     // Obtain OAuth access token via Client Credentials flow
-    const accessToken = await getFakturoidAccessToken();
+    const accessToken = await getFakturoidAccessToken(user.id);
 
     console.log("[Fakturoid] Expense payload:", JSON.stringify(expensePayload, null, 2));
 
