@@ -14,7 +14,7 @@ Vytěž tato pole (pokud nejsou na dokladu, nastav null):
 - invoice_number: číslo dokladu
 - issue_date: datum vystavení (formát YYYY-MM-DD)
 - due_date: datum splatnosti (formát YYYY-MM-DD)
-- total_amount: celková částka včetně DPH (číslo, může být záporné u dobropisů)
+- total_amount: celková částka včetně DPH — VŽDY čti přímo z řádku "Celkem" nebo "Celkem k úhradě" v souhrnné tabulce faktury. NIKDY nepočítej součet položek. Řádek "Zaokrouhlení" je součástí celkové částky — ignoruj ho jako samostatnou hodnotu, ale výsledný "Celkem" už zaokrouhlení obsahuje.
 - currency: měna (výchozí CZK)
 - vat_base: základ daně (číslo, může být záporné)
 - vat_amount: výše DPH (číslo, může být záporné)
