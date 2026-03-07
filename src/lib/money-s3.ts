@@ -71,7 +71,11 @@ function parseAddress(address: string | null | undefined): {
   return { street: address, city: "", psc };
 }
 
-function generateInvoice(doc: Document): {
+function generateInvoice(
+  doc: Document,
+  radaReceived: string,
+  radaIssued: string
+): {
   xml: string;
   received: boolean;
 } {
@@ -80,6 +84,7 @@ function generateInvoice(doc: Document): {
 
   const received = isReceivedInvoice(data);
   const tag = received ? "FaktPrij" : "FaktVyd";
+  const rada = received ? radaReceived : radaIssued;
 
   const items = data.items && data.items.length > 0 ? data.items : null;
   const vatRate = data.vat_rate ?? 21;
@@ -135,6 +140,7 @@ function generateInvoice(doc: Document): {
 
   // Element order MUST match Money S3 XSD xs:sequence exactly
   const xml = `    <${tag}>
+      <Rada>${escapeXml(rada)}</Rada>
       <Doklad></Doklad>
       <Popis>${escapeXml(`Faktura ${data.invoice_number || ""}`.trim())}</Popis>
       <Vystaveno>${formatDate(data.issue_date)}</Vystaveno>
@@ -163,7 +169,9 @@ export type ExportType = "received" | "issued" | "all";
 
 export function generateMoneyS3Xml(
   documents: Document[],
-  type: ExportType
+  type: ExportType,
+  radaReceived = "",
+  radaIssued = ""
 ): string {
   const filtered = documents.filter((doc) => {
     if (!doc.extracted_data) return false;
@@ -172,7 +180,7 @@ export function generateMoneyS3Xml(
     return type === "received" ? received : !received;
   });
 
-  const results = filtered.map((doc) => generateInvoice(doc));
+  const results = filtered.map((doc) => generateInvoice(doc, radaReceived, radaIssued));
 
   const receivedInvoices = results
     .filter((r) => r.received && r.xml)

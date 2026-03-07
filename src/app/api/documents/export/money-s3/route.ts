@@ -14,14 +14,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  let body: { document_ids: string[]; type: ExportType };
+  let body: { document_ids: string[]; type: ExportType; rada_received?: string; rada_issued?: string };
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
   }
 
-  const { document_ids, type = "all" } = body;
+  const { document_ids, type = "all", rada_received = "", rada_issued = "" } = body;
 
   if (!document_ids || !Array.isArray(document_ids) || document_ids.length === 0) {
     return NextResponse.json(
@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const xmlString = generateMoneyS3Xml(documents, type);
+  const xmlString = generateMoneyS3Xml(documents, type, rada_received, rada_issued);
 
   const today = new Date().toISOString().split("T")[0];
   const filename = `money-s3-export-${today}.xml`;

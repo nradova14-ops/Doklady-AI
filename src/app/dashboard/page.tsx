@@ -13,6 +13,14 @@ export default function DashboardPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [radaReceived, setRadaReceived] = useState(() => {
+    if (typeof window !== "undefined") return localStorage.getItem("money_rada_received") || "";
+    return "";
+  });
+  const [radaIssued, setRadaIssued] = useState(() => {
+    if (typeof window !== "undefined") return localStorage.getItem("money_rada_issued") || "";
+    return "";
+  });
   const exportMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -76,6 +84,8 @@ export default function DashboardPage() {
 
   async function handleExport(type: "received" | "issued" | "all") {
     setExportMenuOpen(false);
+    localStorage.setItem("money_rada_received", radaReceived);
+    localStorage.setItem("money_rada_issued", radaIssued);
     setExporting(true);
     try {
       const res = await fetch("/api/documents/export/money-s3", {
@@ -84,6 +94,8 @@ export default function DashboardPage() {
         body: JSON.stringify({
           document_ids: Array.from(selectedIds),
           type,
+          rada_received: radaReceived,
+          rada_issued: radaIssued,
         }),
       });
 
@@ -207,7 +219,30 @@ export default function DashboardPage() {
               </button>
 
               {exportMenuOpen && (
-                <div className="absolute left-0 top-full mt-1 w-56 rounded-lg border border-slate-200 bg-white py-1 shadow-lg z-10">
+                <div className="absolute left-0 top-full mt-1 w-64 rounded-lg border border-slate-200 bg-white py-1 shadow-lg z-10">
+                  <div className="px-4 py-2 space-y-2">
+                    <label className="block text-xs font-medium text-slate-500">
+                      Číselná řada - přijaté
+                      <input
+                        type="text"
+                        value={radaReceived}
+                        onChange={(e) => setRadaReceived(e.target.value)}
+                        placeholder="např. FP"
+                        className="mt-1 block w-full rounded border border-slate-300 px-2 py-1 text-sm text-slate-900 focus:border-slate-500 focus:outline-none"
+                      />
+                    </label>
+                    <label className="block text-xs font-medium text-slate-500">
+                      Číselná řada - vydané
+                      <input
+                        type="text"
+                        value={radaIssued}
+                        onChange={(e) => setRadaIssued(e.target.value)}
+                        placeholder="např. FV"
+                        className="mt-1 block w-full rounded border border-slate-300 px-2 py-1 text-sm text-slate-900 focus:border-slate-500 focus:outline-none"
+                      />
+                    </label>
+                  </div>
+                  <div className="border-t border-slate-100 my-1" />
                   <button
                     onClick={() => handleExport("received")}
                     className="w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
