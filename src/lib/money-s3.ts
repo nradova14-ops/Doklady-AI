@@ -1,4 +1,3 @@
-import * as iconv from "iconv-lite";
 import type { Document, ExtractedData } from "@/types/database";
 
 function escapeXml(str: string | null | undefined): string {
@@ -36,8 +35,6 @@ function isReceivedInvoice(data: ExtractedData): boolean {
 
 /**
  * Parse a Czech address string into street, city, and postal code.
- * Handles formats like "Drčkova 3, 628 00 Brno-Líšeň, Czech Republic"
- * or "Foglarova 1815/53, 66434 Kuřim"
  */
 function parseAddress(address: string | null | undefined): {
   street: string;
@@ -46,7 +43,6 @@ function parseAddress(address: string | null | undefined): {
 } {
   if (!address) return { street: "", city: "", psc: "" };
 
-  // Try to extract PSC (5 digits, optionally with space: "628 00" or "66434")
   const pscMatch = address.match(/(\d{3}\s?\d{2})/);
   const psc = pscMatch ? pscMatch[1].replace(/\s/g, "") : "";
 
@@ -54,11 +50,9 @@ function parseAddress(address: string | null | undefined): {
 
   if (parts.length >= 2) {
     const street = parts[0];
-    // Find the part containing the PSC and city
     let city = "";
     for (let i = 1; i < parts.length; i++) {
       const part = parts[i];
-      // Remove PSC from the part to get the city name
       const cityCandidate = part.replace(/\d{3}\s?\d{2}/, "").trim();
       if (
         cityCandidate &&
@@ -133,16 +127,14 @@ function generateInvoice(doc: Document): {
       </SeznamPolozek>`;
   }
 
-  // Partner info (DodOdb)
+  // Partner info (DodOdb) - uses FaktNazev and FaktAdresa per Money S3 schema
   const firma = received ? data.supplier : data.customer;
   const addr = parseAddress(firma?.address);
 
   // VAT summary at document level
-  // Money S3 uses historically fixed element names:
-  // Zaklad0/Zaklad5/Zaklad22 and DPH5/DPH22
-  // Zaklad22/DPH22 is used for the standard rate (currently 21%)
   const vatBase = data.vat_base ?? 0;
   const vatAmount = data.vat_amount ?? 0;
+  const totalAmount = data.total_amount ?? 0;
 
   const xml = `    <${tag}>
       <Doklad>${escapeXml(data.invoice_number)}</Doklad>
@@ -151,6 +143,7 @@ function generateInvoice(doc: Document): {
       <PlnenoDPH>${formatDate(data.issue_date)}</PlnenoDPH>
       <Splatno>${formatDate(data.due_date)}</Splatno>
       <VarSymbol>${escapeXml(data.variable_symbol)}</VarSymbol>
+      <SazbaDPH1>${vatRate}</SazbaDPH1>
       <SouhrnDPH>
         <Zaklad0>0.00</Zaklad0>
         <Zaklad5>0.00</Zaklad5>
@@ -158,16 +151,17 @@ function generateInvoice(doc: Document): {
         <Zaklad22>${formatNumber(vatBase)}</Zaklad22>
         <DPH22>${formatNumber(vatAmount)}</DPH22>
       </SouhrnDPH>
-      <Celkem>${formatNumber(data.total_amount)}</Celkem>
+      <Celkem>${formatNumber(totalAmount)}</Celkem>
+      <Proplatit>${formatNumber(totalAmount)}</Proplatit>
       <DodOdb>
-        <Nazev>${escapeXml(firma?.name)}</Nazev>
+        <FaktNazev>${escapeXml(firma?.name)}</FaktNazev>
         <ICO>${escapeXml(firma?.ico)}</ICO>
         <DIC>${escapeXml(firma?.dic)}</DIC>
-        <Adresa>
+        <FaktAdresa>
           <Ulice>${escapeXml(addr.street)}</Ulice>
           <Misto>${escapeXml(addr.city)}</Misto>
           <PSC>${escapeXml(addr.psc)}</PSC>
-        </Adresa>
+        </FaktAdresa>
       </DodOdb>
 ${polozkyXml}
     </${tag}>`;
@@ -207,11 +201,13 @@ export function generateMoneyS3Xml(
     seznamy += `  <SeznamFaktVyd>\n${issuedInvoices}\n  </SeznamFaktVyd>\n`;
   }
 
-  return `<?xml version="1.0" encoding="Windows-1250"?>
+  return `<?xml version="1.0" encoding="UTF-8"?>
 <MoneyData JazykVerze="CZ">
 ${seznamy}</MoneyData>`;
 }
 
 export function encodeToWindows1250(xmlString: string): Buffer {
+  // Keep for backward compatibility but no longer used by default
+  const iconv = require("iconv-lite");
   return iconv.encode(xmlString, "win1250");
 }

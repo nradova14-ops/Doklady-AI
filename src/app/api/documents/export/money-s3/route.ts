@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { generateMoneyS3Xml, encodeToWindows1250 } from "@/lib/money-s3";
+import { generateMoneyS3Xml } from "@/lib/money-s3";
 import type { ExportType } from "@/lib/money-s3";
 
 export async function POST(request: NextRequest) {
@@ -51,15 +51,14 @@ export async function POST(request: NextRequest) {
   }
 
   const xmlString = generateMoneyS3Xml(documents, type);
-  const xmlBuffer = encodeToWindows1250(xmlString);
 
   const today = new Date().toISOString().split("T")[0];
   const filename = `money-s3-export-${today}.xml`;
 
-  return new NextResponse(new Uint8Array(xmlBuffer), {
+  return new NextResponse(xmlString, {
     status: 200,
     headers: {
-      "Content-Type": "application/xml; charset=windows-1250",
+      "Content-Type": "application/xml; charset=utf-8",
       "Content-Disposition": `attachment; filename="${filename}"`,
     },
   });
