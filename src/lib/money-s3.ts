@@ -92,8 +92,8 @@ function generateInvoice(doc: Document): {
         const qty = item.quantity ?? 1;
         const unitPrice = item.unit_price ?? 0;
         const total = item.total ?? qty * unitPrice;
-        const base = total / (1 + vatRate / 100);
-        const vat = total - base;
+        const base = Math.round((total / (1 + vatRate / 100)) * 100) / 100;
+        const vat = Math.round((total - base) * 100) / 100;
         return `        <Polozka>
           <Popis>${escapeXml(item.description)}</Popis>
           <PocetMJ>${formatNumber(qty)}</PocetMJ>
@@ -110,8 +110,8 @@ function generateInvoice(doc: Document): {
     polozkyXml = `      <SeznamPolozek>\n${polozky}\n      </SeznamPolozek>`;
   } else {
     const total = data.total_amount ?? 0;
-    const vatBase = data.vat_base ?? total / (1 + vatRate / 100);
-    const vatAmount = data.vat_amount ?? total - vatBase;
+    const vatBase = data.vat_base ?? Math.round((total / (1 + vatRate / 100)) * 100) / 100;
+    const vatAmount = data.vat_amount ?? Math.round((total - vatBase) * 100) / 100;
     polozkyXml = `      <SeznamPolozek>
         <Polozka>
           <Popis>${escapeXml(data.notes || "Souhrnná položka")}</Popis>
