@@ -139,8 +139,8 @@ function generateInvoice(
   const totalAmount = data.total_amount ?? 0;
 
   // Element order MUST match Money S3 XSD xs:sequence exactly
-  const xml = `    <${tag}>
-      <Rada>${escapeXml(rada)}</Rada>
+  const radaXml = rada ? `\n      <Rada>${escapeXml(rada)}</Rada>` : "";
+  const xml = `    <${tag}>${radaXml}
       <Doklad></Doklad>
       <Popis>${escapeXml(`Faktura ${data.invoice_number || ""}`.trim())}</Popis>
       <Vystaveno>${formatDate(data.issue_date)}</Vystaveno>
