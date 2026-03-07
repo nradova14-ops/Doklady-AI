@@ -80,6 +80,7 @@ function generateInvoice(doc: Document): {
 
   const received = isReceivedInvoice(data);
   const tag = received ? "FaktPrij" : "FaktVyd";
+  const rada = received ? "FP" : "FV";
 
   const items = data.items && data.items.length > 0 ? data.items : null;
   const vatRate = data.vat_rate ?? 21;
@@ -135,6 +136,7 @@ function generateInvoice(doc: Document): {
 
   // Element order MUST match Money S3 XSD xs:sequence exactly
   const xml = `    <${tag}>
+      <Rada>${rada}</Rada>
       <Doklad></Doklad>
       <Popis>${escapeXml(`Faktura ${data.invoice_number || ""}`.trim())}</Popis>
       <Vystaveno>${formatDate(data.issue_date)}</Vystaveno>
