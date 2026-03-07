@@ -141,7 +141,7 @@ function generateInvoice(doc: Document): {
       <DatUcPr>${formatDate(data.issue_date)}</DatUcPr>
       <PlnenoDPH>${formatDate(data.issue_date)}</PlnenoDPH>
       <Splatno>${formatDate(data.due_date)}</Splatno>
-      <VarSymbol>${escapeXml(data.invoice_number)}</VarSymbol>
+      <VarSymbol>${escapeXml(data.variable_symbol)}</VarSymbol>
       <Celkem>${formatNumber(Math.round(totalAmount * 100) / 100)}</Celkem>
       <DodOdb>
         <FaktNazev>${escapeXml(firma?.name)}</FaktNazev>
