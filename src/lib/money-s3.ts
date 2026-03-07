@@ -145,16 +145,6 @@ function generateInvoice(doc: Document): {
       <PlnenoDPH>${formatDate(data.issue_date)}</PlnenoDPH>
       <Splatno>${formatDate(data.due_date)}</Splatno>
       <VarSymbol>${escapeXml(data.variable_symbol)}</VarSymbol>
-      <ZpVypDPH>0</ZpVypDPH>
-      <SazbaDPH1>${vatRate}</SazbaDPH1>
-      <Proplatit>${formatNumber(totalAmount)}</Proplatit>
-      <SouhrnDPH>
-        <Zaklad0>0.00</Zaklad0>
-        <Zaklad5>0.00</Zaklad5>
-        <DPH5>0.00</DPH5>
-        <Zaklad22>${formatNumber(vatBase)}</Zaklad22>
-        <DPH22>${formatNumber(vatAmount)}</DPH22>
-      </SouhrnDPH>
       <Celkem>${formatNumber(totalAmount)}</Celkem>
       <DodOdb>
         <FaktNazev>${escapeXml(firma?.name)}</FaktNazev>
