@@ -136,14 +136,19 @@ function generateInvoice(doc: Document): {
   const vatAmount = data.vat_amount ?? 0;
   const totalAmount = data.total_amount ?? 0;
 
+  // Element order MUST match Money S3 XSD xs:sequence exactly
   const xml = `    <${tag}>
       <Doklad>${escapeXml(data.invoice_number)}</Doklad>
       <Popis>${escapeXml(data.notes || `Faktura ${data.invoice_number || ""}`.trim())}</Popis>
       <Vystaveno>${formatDate(data.issue_date)}</Vystaveno>
+      <DatUcPr>${formatDate(data.issue_date)}</DatUcPr>
       <PlnenoDPH>${formatDate(data.issue_date)}</PlnenoDPH>
       <Splatno>${formatDate(data.due_date)}</Splatno>
       <VarSymbol>${escapeXml(data.variable_symbol)}</VarSymbol>
+      <ZpVypDPH>0</ZpVypDPH>
       <SazbaDPH1>${vatRate}</SazbaDPH1>
+      <SazbaDPH2>12</SazbaDPH2>
+      <Proplatit>${formatNumber(totalAmount)}</Proplatit>
       <SouhrnDPH>
         <Zaklad0>0.00</Zaklad0>
         <Zaklad5>0.00</Zaklad5>
@@ -152,7 +157,6 @@ function generateInvoice(doc: Document): {
         <DPH22>${formatNumber(vatAmount)}</DPH22>
       </SouhrnDPH>
       <Celkem>${formatNumber(totalAmount)}</Celkem>
-      <Proplatit>${formatNumber(totalAmount)}</Proplatit>
       <DodOdb>
         <FaktNazev>${escapeXml(firma?.name)}</FaktNazev>
         <ICO>${escapeXml(firma?.ico)}</ICO>
