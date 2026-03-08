@@ -122,27 +122,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Server misconfigured" }, { status: 500 });
   }
 
-  // Fetch attachment list from Resend API
-  const attachmentsRes = await fetch(
-    `https://api.resend.com/emails/${email_id}/attachments`,
-    { headers: { Authorization: `Bearer ${resendApiKey}` } }
-  );
+  // Attachments are included in the webhook payload
+  const attachmentList = (payload.data.attachments as ResendAttachmentMeta[]) || [];
 
-  if (!attachmentsRes.ok) {
-    console.error("Failed to fetch attachments:", attachmentsRes.status);
-    return NextResponse.json({ error: "Failed to fetch attachments" }, { status: 502 });
-  }
-
-  const { data: attachmentList } = (await attachmentsRes.json()) as {
-    data: ResendAttachmentMeta[];
-  };
-
-  if (!attachmentList || attachmentList.length === 0) {
-    console.log("[inbound-email] No attachments found for email:", email_id);
+  if (attachmentList.length === 0) {
+    console.log("[inbound-email] No attachments in webhook payload");
     return NextResponse.json({ success: true, processed: 0 });
   }
 
-  console.log("[inbound-email] Found", attachmentList.length, "attachments");
+  console.log("[inbound-email] Found", attachmentList.length, "attachments in payload");
 
   // Filter to allowed types
   const validAttachments = attachmentList.filter((att) =>
@@ -158,19 +146,34 @@ export async function POST(request: NextRequest) {
 
   for (const attachment of validAttachments) {
     try {
-      // Download attachment content from Resend API
-      const contentRes = await fetch(
-        `https://api.resend.com/emails/${email_id}/attachments/${attachment.id}`,
+      // Fetch attachment details (download_url) from Resend API
+      console.log("[inbound-email] Fetching attachment:", attachment.id, attachment.filename);
+      const attRes = await fetch(
+        `https://api.resend.com/emails/${email_id}/received/attachments/${attachment.id}`,
         { headers: { Authorization: `Bearer ${resendApiKey}` } }
       );
 
-      if (!contentRes.ok) {
-        console.error("Failed to download attachment:", attachment.filename, contentRes.status);
+      if (!attRes.ok) {
+        console.error("[inbound-email] Failed to fetch attachment details:", attachment.filename, attRes.status, await attRes.text().catch(() => ""));
         continue;
       }
 
-      const { content } = (await contentRes.json()) as { content: string };
-      const buffer = Buffer.from(content, "base64");
+      const attData = (await attRes.json()) as { data?: { download_url?: string } };
+      const downloadUrl = attData.data?.download_url;
+
+      if (!downloadUrl) {
+        console.error("[inbound-email] No download_url for attachment:", attachment.filename, JSON.stringify(attData));
+        continue;
+      }
+
+      // Download the actual file
+      const fileRes = await fetch(downloadUrl);
+      if (!fileRes.ok) {
+        console.error("[inbound-email] Failed to download file:", attachment.filename, fileRes.status);
+        continue;
+      }
+
+      const buffer = Buffer.from(await fileRes.arrayBuffer());
 
       const documentId = crypto.randomUUID();
       const fileType = attachment.content_type === "application/pdf" ? "pdf" : "image";
