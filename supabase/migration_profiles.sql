@@ -37,3 +37,6 @@ CREATE TRIGGER on_auth_user_created
 INSERT INTO profiles (id)
 SELECT id FROM auth.users
 ON CONFLICT (id) DO NOTHING;
+
+-- Add source column to documents table to track origin (upload vs email)
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'upload';

@@ -35,46 +35,54 @@ DŮLEŽITÉ pravidlo pro záporné částky:
 - Pokud je na dokladu uvedena záporná hodnota, ZACHOVEJ záporné znaménko.
 - Dobropisy a storna typicky obsahují záporné částky — je to správné chování.`;
 
-interface ResendAttachment {
-  filename: string;
-  content: string; // base64
-  contentType: string;
+interface ResendWebhookPayload {
+  type: string;
+  data: {
+    email_id: string;
+    from: string;
+    to: string[];
+    subject: string;
+  };
 }
 
-interface ResendInboundPayload {
-  from: string;
-  to: string[];
-  subject: string;
-  html?: string;
-  text?: string;
-  attachments?: ResendAttachment[];
+interface ResendAttachmentMeta {
+  id: string;
+  filename: string;
+  content_type: string;
 }
 
 export async function POST(request: NextRequest) {
-  // Verify webhook secret
-  const secret = request.headers.get("x-webhook-secret");
+  // Verify webhook secret (header or query param)
+  const secret =
+    request.headers.get("x-webhook-secret") ??
+    new URL(request.url).searchParams.get("secret");
   if (secret !== process.env.RESEND_WEBHOOK_SECRET) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  let payload: ResendInboundPayload;
+  let payload: ResendWebhookPayload;
   try {
     payload = await request.json();
   } catch {
     return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
   }
 
-  // Extract token from to address
-  const toAddress = payload.to?.[0];
+  // Only handle email.received events
+  if (payload.type !== "email.received") {
+    return NextResponse.json({ ok: true });
+  }
+
+  const { email_id, to } = payload.data;
+  const toAddress = Array.isArray(to) ? to[0] : to;
   if (!toAddress) {
     return NextResponse.json({ error: "No recipient" }, { status: 400 });
   }
 
-  const match = toAddress.match(/^([^@]+)@in\.doklady\.fun$/i);
-  if (!match) {
-    return NextResponse.json({ error: "Invalid recipient domain" }, { status: 400 });
+  // Parse token from {token}@doklady.fun
+  const [token, domain] = toAddress.split("@");
+  if (domain !== "doklady.fun") {
+    return NextResponse.json({ error: "Invalid domain" }, { status: 400 });
   }
-  const token = match[1];
 
   // Find user by token
   const supabase = createAdminClient();
@@ -91,34 +99,68 @@ export async function POST(request: NextRequest) {
   }
 
   const userId = profile.id;
+  const resendApiKey = process.env.RESEND_API_KEY;
+  if (!resendApiKey) {
+    console.error("RESEND_API_KEY not configured");
+    return NextResponse.json({ error: "Server misconfigured" }, { status: 500 });
+  }
 
-  // Filter valid attachments
-  const attachments = (payload.attachments || []).filter((att) =>
-    ALLOWED_CONTENT_TYPES.includes(att.contentType.toLowerCase())
+  // Fetch attachment list from Resend API
+  const attachmentsRes = await fetch(
+    `https://api.resend.com/emails/${email_id}/attachments`,
+    { headers: { Authorization: `Bearer ${resendApiKey}` } }
   );
 
-  if (attachments.length === 0) {
-    // No processable attachments — silently accept to avoid Resend retries
+  if (!attachmentsRes.ok) {
+    console.error("Failed to fetch attachments:", attachmentsRes.status);
+    return NextResponse.json({ error: "Failed to fetch attachments" }, { status: 502 });
+  }
+
+  const { data: attachmentList } = (await attachmentsRes.json()) as {
+    data: ResendAttachmentMeta[];
+  };
+
+  if (!attachmentList || attachmentList.length === 0) {
     return NextResponse.json({ success: true, processed: 0 });
   }
 
-  const processed: string[] = [];
+  // Filter to allowed types
+  const validAttachments = attachmentList.filter((att) =>
+    ALLOWED_CONTENT_TYPES.includes(att.content_type.toLowerCase())
+  );
 
-  for (const attachment of attachments) {
+  if (validAttachments.length === 0) {
+    return NextResponse.json({ success: true, processed: 0 });
+  }
+
+  let processedCount = 0;
+
+  for (const attachment of validAttachments) {
     try {
+      // Download attachment content from Resend API
+      const contentRes = await fetch(
+        `https://api.resend.com/emails/${email_id}/attachments/${attachment.id}`,
+        { headers: { Authorization: `Bearer ${resendApiKey}` } }
+      );
+
+      if (!contentRes.ok) {
+        console.error("Failed to download attachment:", attachment.filename, contentRes.status);
+        continue;
+      }
+
+      const { content } = (await contentRes.json()) as { content: string };
+      const buffer = Buffer.from(content, "base64");
+
       const documentId = crypto.randomUUID();
-      const fileType = attachment.contentType === "application/pdf" ? "pdf" : "image";
+      const fileType = attachment.content_type === "application/pdf" ? "pdf" : "image";
       const filename = attachment.filename || `attachment-${documentId}.${fileType === "pdf" ? "pdf" : "jpg"}`;
       const storagePath = `${userId}/${documentId}/${filename}`;
-
-      // Decode base64 attachment
-      const buffer = Buffer.from(attachment.content, "base64");
 
       // Upload to Supabase Storage
       const { error: uploadError } = await supabase.storage
         .from("documents")
         .upload(storagePath, buffer, {
-          contentType: attachment.contentType,
+          contentType: attachment.content_type,
           upsert: false,
         });
 
@@ -135,6 +177,7 @@ export async function POST(request: NextRequest) {
         file_name: filename,
         file_type: fileType,
         status: "processing",
+        source: "email",
       });
 
       if (dbError) {
@@ -154,13 +197,13 @@ export async function POST(request: NextRequest) {
           .eq("id", documentId);
       }
 
-      processed.push(documentId);
+      processedCount++;
     } catch (err) {
       console.error("Error processing attachment:", attachment.filename, err);
     }
   }
 
-  return NextResponse.json({ success: true, processed: processed.length });
+  return NextResponse.json({ success: true, processed: processedCount });
 }
 
 async function extractDocument(

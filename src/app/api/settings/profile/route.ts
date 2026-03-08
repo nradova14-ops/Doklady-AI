@@ -22,7 +22,7 @@ export async function GET() {
   if (existing) {
     return NextResponse.json({
       inbound_email_token: existing.inbound_email_token,
-      inbound_email: `${existing.inbound_email_token}@in.doklady.fun`,
+      inbound_email: `${existing.inbound_email_token}@doklady.fun`,
     });
   }
 
@@ -42,7 +42,7 @@ export async function GET() {
 
   return NextResponse.json({
     inbound_email_token: newProfile.inbound_email_token,
-    inbound_email: `${newProfile.inbound_email_token}@in.doklady.fun`,
+    inbound_email: `${newProfile.inbound_email_token}@doklady.fun`,
   });
 }
 
@@ -88,6 +88,6 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({
     inbound_email_token: newToken,
-    inbound_email: `${newToken}@in.doklady.fun`,
+    inbound_email: `${newToken}@doklady.fun`,
   });
 }
