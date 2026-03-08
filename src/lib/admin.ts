@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supabase/server";
+import { createServerSupabaseClient, createAdminClient } from "@/lib/supabase/server";
 
 /**
- * Verify the current user is an admin. Returns the user ID if admin,
+ * Verify the current user is an admin. Returns the user ID and an
+ * admin supabase client (service role, bypasses RLS) if admin,
  * or a NextResponse error if not.
  */
 export async function requireAdmin(): Promise<
-  { userId: string } | NextResponse
+  { userId: string; adminClient: ReturnType<typeof createAdminClient> } | NextResponse
 > {
   const supabase = createServerSupabaseClient();
 
@@ -18,8 +19,8 @@ export async function requireAdmin(): Promise<
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const serviceClient = createServiceRoleClient();
-  const { data: profile } = await serviceClient
+  const adminClient = createAdminClient();
+  const { data: profile } = await adminClient
     .from("profiles")
     .select("is_admin")
     .eq("id", user.id)
@@ -29,11 +30,11 @@ export async function requireAdmin(): Promise<
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  return { userId: user.id };
+  return { userId: user.id, adminClient };
 }
 
 export function isErrorResponse(
-  result: { userId: string } | NextResponse
+  result: { userId: string; adminClient: ReturnType<typeof createAdminClient> } | NextResponse
 ): result is NextResponse {
   return result instanceof NextResponse;
 }

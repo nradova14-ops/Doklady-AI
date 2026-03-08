@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServiceRoleClient } from "@/lib/supabase/server";
 import { requireAdmin, isErrorResponse } from "@/lib/admin";
 
 export async function GET(request: NextRequest) {
@@ -12,7 +11,7 @@ export async function GET(request: NextRequest) {
   const search = url.searchParams.get("search") || "";
   const tier = url.searchParams.get("tier") || "";
 
-  const supabase = createServiceRoleClient();
+  const supabase = auth.adminClient;
 
   // Get users from auth with pagination
   const { data: authData, error: authError } = await supabase.auth.admin.listUsers({

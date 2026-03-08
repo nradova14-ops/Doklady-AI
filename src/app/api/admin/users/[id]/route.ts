@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServiceRoleClient } from "@/lib/supabase/server";
+
 import { requireAdmin, isErrorResponse } from "@/lib/admin";
 
 export async function GET(
@@ -9,7 +9,7 @@ export async function GET(
   const auth = await requireAdmin();
   if (isErrorResponse(auth)) return auth;
 
-  const supabase = createServiceRoleClient();
+  const supabase = auth.adminClient;
   const targetId = params.id;
 
   // Get user from auth
@@ -86,7 +86,7 @@ export async function PATCH(
   const auth = await requireAdmin();
   if (isErrorResponse(auth)) return auth;
 
-  const supabase = createServiceRoleClient();
+  const supabase = auth.adminClient;
   const targetId = params.id;
 
   let body: { subscription_tier?: string; is_admin?: boolean };

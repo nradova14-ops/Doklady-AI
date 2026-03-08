@@ -1,12 +1,11 @@
 import { NextResponse } from "next/server";
-import { createServiceRoleClient } from "@/lib/supabase/server";
 import { requireAdmin, isErrorResponse } from "@/lib/admin";
 
 export async function GET() {
   const auth = await requireAdmin();
   if (isErrorResponse(auth)) return auth;
 
-  const supabase = createServiceRoleClient();
+  const supabase = auth.adminClient;
 
   const now = new Date();
   const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
