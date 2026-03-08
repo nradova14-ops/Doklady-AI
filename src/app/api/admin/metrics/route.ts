@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 import { requireAdmin, isErrorResponse } from "@/lib/admin";
 
+// Claude Sonnet 4 pricing (per 1M tokens)
+const PRICE_INPUT_PER_M = 3;
+const PRICE_OUTPUT_PER_M = 15;
+const PRICE_CACHE_READ_PER_M = 0.3;
+const PRICE_CACHE_CREATE_PER_M = 3.75;
+
 export async function GET() {
   const auth = await requireAdmin();
   if (isErrorResponse(auth)) return auth;
@@ -12,45 +18,57 @@ export async function GET() {
   const startOfWeek = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
 
-  const [todayDocs, weekDocs, monthDocs] = await Promise.all([
+  const [todayLogs, weekLogs, monthLogs, weekLogsWithDate] = await Promise.all([
     supabase
-      .from("documents")
-      .select("status, extraction_duration_ms")
+      .from("extraction_logs")
+      .select("status, duration_ms, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens")
       .gte("created_at", startOfDay),
     supabase
-      .from("documents")
-      .select("status, extraction_duration_ms")
+      .from("extraction_logs")
+      .select("status, duration_ms, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens")
       .gte("created_at", startOfWeek),
     supabase
-      .from("documents")
-      .select("id", { count: "exact", head: true })
-      .gte("created_at", startOfMonth)
-      .eq("status", "done"),
+      .from("extraction_logs")
+      .select("input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens")
+      .gte("created_at", startOfMonth),
+    supabase
+      .from("extraction_logs")
+      .select("status, created_at")
+      .gte("created_at", startOfWeek),
   ]);
 
-  const todayData = todayDocs.data || [];
-  const weekData = weekDocs.data || [];
+  const todayData = todayLogs.data || [];
+  const weekData = weekLogs.data || [];
+  const monthData = monthLogs.data || [];
 
-  const todayDone = todayData.filter((d) => d.extraction_duration_ms != null);
-  const weekDone = weekData.filter((d) => d.extraction_duration_ms != null);
+  // Avg extraction duration
+  const todayDone = todayData.filter((d) => d.duration_ms != null && d.status === "success");
+  const weekDone = weekData.filter((d) => d.duration_ms != null && d.status === "success");
 
   const avgToday = todayDone.length > 0
-    ? Math.round(todayDone.reduce((s, d) => s + (d.extraction_duration_ms || 0), 0) / todayDone.length)
+    ? Math.round(todayDone.reduce((s, d) => s + (d.duration_ms || 0), 0) / todayDone.length)
     : 0;
   const avgWeek = weekDone.length > 0
-    ? Math.round(weekDone.reduce((s, d) => s + (d.extraction_duration_ms || 0), 0) / weekDone.length)
+    ? Math.round(weekDone.reduce((s, d) => s + (d.duration_ms || 0), 0) / weekDone.length)
     : 0;
 
+  // Error rates
   const todayErrors = todayData.filter((d) => d.status === "error").length;
   const weekErrors = weekData.filter((d) => d.status === "error").length;
-
   const errorRateToday = todayData.length > 0 ? Math.round((todayErrors / todayData.length) * 100) : 0;
   const errorRateWeek = weekData.length > 0 ? Math.round((weekErrors / weekData.length) * 100) : 0;
 
-  // Estimate Claude API costs (~1500 tokens per extraction, $3/1M input tokens)
-  const extractionsThisMonth = monthDocs.count || 0;
-  const estimatedTokens = extractionsThisMonth * 1500;
-  const estimatedCostUsd = Math.round((estimatedTokens / 1_000_000) * 3 * 100) / 100;
+  // Real token usage this month
+  const totalInputTokens = monthData.reduce((s, d) => s + (d.input_tokens || 0), 0);
+  const totalOutputTokens = monthData.reduce((s, d) => s + (d.output_tokens || 0), 0);
+  const totalCacheReadTokens = monthData.reduce((s, d) => s + (d.cache_read_tokens || 0), 0);
+  const totalCacheCreateTokens = monthData.reduce((s, d) => s + (d.cache_creation_tokens || 0), 0);
+
+  const costUsd =
+    (totalInputTokens / 1_000_000) * PRICE_INPUT_PER_M +
+    (totalOutputTokens / 1_000_000) * PRICE_OUTPUT_PER_M +
+    (totalCacheReadTokens / 1_000_000) * PRICE_CACHE_READ_PER_M +
+    (totalCacheCreateTokens / 1_000_000) * PRICE_CACHE_CREATE_PER_M;
 
   // Daily extractions for last 7 days
   const dailyExtractions: { date: string; count: number; errors: number }[] = [];
@@ -60,18 +78,12 @@ export async function GET() {
     dailyExtractions.push({ date: dayStr, count: 0, errors: 0 });
   }
 
-  // Get daily breakdown properly
-  const { data: weekDocsWithDate } = await supabase
-    .from("documents")
-    .select("status, created_at")
-    .gte("created_at", startOfWeek);
-
   for (const entry of dailyExtractions) {
-    const dayDocs = (weekDocsWithDate || []).filter((d) =>
+    const dayLogs = (weekLogsWithDate.data || []).filter((d) =>
       d.created_at.startsWith(entry.date)
     );
-    entry.count = dayDocs.length;
-    entry.errors = dayDocs.filter((d) => d.status === "error").length;
+    entry.count = dayLogs.length;
+    entry.errors = dayLogs.filter((d) => d.status === "error").length;
   }
 
   return NextResponse.json({
@@ -81,8 +93,15 @@ export async function GET() {
     extractions_week: weekData.length,
     error_rate_today: errorRateToday,
     error_rate_week: errorRateWeek,
-    estimated_tokens_this_month: estimatedTokens,
-    estimated_cost_usd: estimatedCostUsd,
+    tokens_this_month: {
+      input: totalInputTokens,
+      output: totalOutputTokens,
+      cache_read: totalCacheReadTokens,
+      cache_creation: totalCacheCreateTokens,
+      total: totalInputTokens + totalOutputTokens + totalCacheReadTokens + totalCacheCreateTokens,
+    },
+    cost_usd: Math.round(costUsd * 100) / 100,
+    extractions_this_month: monthData.length,
     daily_extractions: dailyExtractions,
   });
 }

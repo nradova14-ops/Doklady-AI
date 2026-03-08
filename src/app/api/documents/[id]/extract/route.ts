@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerSupabaseClient, createAdminClient } from "@/lib/supabase/server";
 import Anthropic from "@anthropic-ai/sdk";
 
 const EXTRACTION_PROMPT = `Jsi expert na vytěžování dat z českých účetních dokladů.
@@ -66,6 +66,8 @@ export async function POST(
     return NextResponse.json({ error: "Document not found" }, { status: 404 });
   }
 
+  let startTime = Date.now();
+
   try {
     // Download file from storage
     const { data: fileData, error: downloadError } = await supabase.storage
@@ -120,8 +122,11 @@ export async function POST(
       text: "Vytěž data z tohoto dokladu podle instrukcí.",
     });
 
+    startTime = Date.now();
+    const model = "claude-sonnet-4-20250514";
+
     const response = await anthropic.messages.create({
-      model: "claude-sonnet-4-20250514",
+      model,
       max_tokens: 4096,
       system: EXTRACTION_PROMPT,
       messages: [
@@ -131,6 +136,8 @@ export async function POST(
         },
       ],
     });
+
+    const durationMs = Date.now() - startTime;
 
     // Parse response
     const textBlock = response.content.find((b) => b.type === "text");
@@ -152,6 +159,7 @@ export async function POST(
       .update({
         extracted_data: extractedData,
         status: "done",
+        extraction_duration_ms: durationMs,
         updated_at: new Date().toISOString(),
       })
       .eq("id", params.id);
@@ -160,18 +168,53 @@ export async function POST(
       throw new Error("Failed to update document");
     }
 
+    // Log extraction with token usage
+    const adminClient = createAdminClient();
+    const usage = response.usage;
+    await adminClient.from("extraction_logs").insert({
+      document_id: params.id,
+      user_id: user.id,
+      status: "success",
+      model,
+      input_tokens: usage.input_tokens || 0,
+      output_tokens: usage.output_tokens || 0,
+      cache_read_tokens: (usage as unknown as Record<string, number>).cache_read_input_tokens || 0,
+      cache_creation_tokens: (usage as unknown as Record<string, number>).cache_creation_input_tokens || 0,
+      duration_ms: durationMs,
+    });
+
     return NextResponse.json({ extracted_data: extractedData });
   } catch (err) {
     console.error("Extraction error:", err);
+
+    const errorMsg = err instanceof Error ? err.message : "Unknown error";
 
     // Set status to error
     await supabase
       .from("documents")
       .update({
         status: "error",
+        error_message: errorMsg,
         updated_at: new Date().toISOString(),
       })
       .eq("id", params.id);
+
+    // Log failed extraction
+    try {
+      const adminClient = createAdminClient();
+      await adminClient.from("extraction_logs").insert({
+        document_id: params.id,
+        user_id: user.id,
+        status: "error",
+        model: "claude-sonnet-4-20250514",
+        input_tokens: 0,
+        output_tokens: 0,
+        duration_ms: Date.now() - startTime,
+        error_message: errorMsg,
+      });
+    } catch {
+      // Don't fail the request if logging fails
+    }
 
     return NextResponse.json(
       { error: "Extraction failed" },

@@ -9,8 +9,15 @@ interface Metrics {
   extractions_week: number;
   error_rate_today: number;
   error_rate_week: number;
-  estimated_tokens_this_month: number;
-  estimated_cost_usd: number;
+  tokens_this_month: {
+    input: number;
+    output: number;
+    cache_read: number;
+    cache_creation: number;
+    total: number;
+  };
+  cost_usd: number;
+  extractions_this_month: number;
   daily_extractions: Array<{ date: string; count: number; errors: number }>;
 }
 
@@ -22,6 +29,12 @@ function MetricCard({ label, value, subtitle }: { label: string; value: string; 
       {subtitle && <p className="mt-1 text-xs text-slate-400">{subtitle}</p>}
     </div>
   );
+}
+
+function formatTokens(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(0)}k`;
+  return String(n);
 }
 
 export default function AdminMetricsPage() {
@@ -49,6 +62,7 @@ export default function AdminMetricsPage() {
   }
 
   const maxCount = Math.max(...metrics.daily_extractions.map((d) => d.count), 1);
+  const tokens = metrics.tokens_this_month;
 
   return (
     <div>
@@ -72,10 +86,73 @@ export default function AdminMetricsPage() {
           subtitle={`Za týden: ${metrics.error_rate_week}%`}
         />
         <MetricCard
-          label="Claude API odhad"
-          value={`$${metrics.estimated_cost_usd.toFixed(2)}`}
-          subtitle={`~${(metrics.estimated_tokens_this_month / 1000).toFixed(0)}k tokenů tento měsíc`}
+          label="Claude API náklady"
+          value={`$${metrics.cost_usd.toFixed(2)}`}
+          subtitle={`${metrics.extractions_this_month} extrakcí tento měsíc`}
         />
+      </div>
+
+      {/* Token usage breakdown */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <div className="rounded-lg border border-slate-200 bg-white p-5">
+          <h3 className="text-sm font-semibold text-slate-700 mb-4">Spotřeba tokenů tento měsíc</h3>
+          <div className="space-y-3">
+            <div className="flex justify-between text-sm">
+              <span className="text-slate-600">Input tokeny</span>
+              <span className="font-medium text-slate-900">{formatTokens(tokens.input)}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-slate-600">Output tokeny</span>
+              <span className="font-medium text-slate-900">{formatTokens(tokens.output)}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-slate-600">Cache read</span>
+              <span className="font-medium text-slate-900">{formatTokens(tokens.cache_read)}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-slate-600">Cache creation</span>
+              <span className="font-medium text-slate-900">{formatTokens(tokens.cache_creation)}</span>
+            </div>
+            <div className="border-t border-slate-100 pt-2 flex justify-between text-sm font-semibold">
+              <span className="text-slate-700">Celkem</span>
+              <span className="text-slate-900">{formatTokens(tokens.total)}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-slate-200 bg-white p-5">
+          <h3 className="text-sm font-semibold text-slate-700 mb-4">Rozpad nákladů</h3>
+          <div className="space-y-3">
+            <div className="flex justify-between text-sm">
+              <span className="text-slate-600">Input ($3/1M)</span>
+              <span className="font-medium text-slate-900">
+                ${((tokens.input / 1_000_000) * 3).toFixed(3)}
+              </span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-slate-600">Output ($15/1M)</span>
+              <span className="font-medium text-slate-900">
+                ${((tokens.output / 1_000_000) * 15).toFixed(3)}
+              </span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-slate-600">Cache read ($0.30/1M)</span>
+              <span className="font-medium text-slate-900">
+                ${((tokens.cache_read / 1_000_000) * 0.3).toFixed(3)}
+              </span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-slate-600">Cache creation ($3.75/1M)</span>
+              <span className="font-medium text-slate-900">
+                ${((tokens.cache_creation / 1_000_000) * 3.75).toFixed(3)}
+              </span>
+            </div>
+            <div className="border-t border-slate-100 pt-2 flex justify-between text-sm font-semibold">
+              <span className="text-slate-700">Celkem</span>
+              <span className="text-slate-900">${metrics.cost_usd.toFixed(2)}</span>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Bar chart - daily extractions */}

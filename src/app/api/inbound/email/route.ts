@@ -188,7 +188,7 @@ export async function POST(request: NextRequest) {
 
       // Run extraction via Claude API
       try {
-        await extractDocument(supabase, documentId, storagePath, fileType, filename);
+        await extractDocument(supabase, documentId, userId, storagePath, fileType, filename);
       } catch (extractErr) {
         console.error("Extraction error for", filename, extractErr);
         await supabase
@@ -209,10 +209,14 @@ export async function POST(request: NextRequest) {
 async function extractDocument(
   supabase: ReturnType<typeof createAdminClient>,
   documentId: string,
+  userId: string,
   fileUrl: string,
   fileType: string,
   fileName: string
 ) {
+  const startTime = Date.now();
+  const model = "claude-sonnet-4-20250514";
+
   // Download file from storage
   const { data: fileData, error: downloadError } = await supabase.storage
     .from("documents")
@@ -257,11 +261,13 @@ async function extractDocument(
   });
 
   const response = await anthropic.messages.create({
-    model: "claude-sonnet-4-20250514",
+    model,
     max_tokens: 4096,
     system: EXTRACTION_PROMPT,
     messages: [{ role: "user", content }],
   });
+
+  const durationMs = Date.now() - startTime;
 
   const textBlock = response.content.find((b) => b.type === "text");
   if (!textBlock || textBlock.type !== "text") {
@@ -280,7 +286,22 @@ async function extractDocument(
     .update({
       extracted_data: extractedData,
       status: "done",
+      extraction_duration_ms: durationMs,
       updated_at: new Date().toISOString(),
     })
     .eq("id", documentId);
+
+  // Log extraction with token usage
+  const usage = response.usage;
+  await supabase.from("extraction_logs").insert({
+    document_id: documentId,
+    user_id: userId,
+    status: "success",
+    model,
+    input_tokens: usage.input_tokens || 0,
+    output_tokens: usage.output_tokens || 0,
+    cache_read_tokens: (usage as unknown as Record<string, number>).cache_read_input_tokens || 0,
+    cache_creation_tokens: (usage as unknown as Record<string, number>).cache_creation_input_tokens || 0,
+    duration_ms: durationMs,
+  });
 }
