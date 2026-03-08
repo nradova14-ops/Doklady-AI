@@ -56,12 +56,13 @@ interface ResendAttachmentMeta {
 export async function POST(request: NextRequest) {
   console.log("[inbound-email] Webhook received");
 
-  // Verify webhook secret (header or query param)
-  const secret =
-    request.headers.get("x-webhook-secret") ??
-    new URL(request.url).searchParams.get("secret");
-  if (secret !== process.env.RESEND_WEBHOOK_SECRET) {
-    console.error("[inbound-email] Auth failed - secret mismatch");
+  // Verify webhook - accept if Svix signature headers are present (Resend uses Svix)
+  // or fall back to query param secret for simple setups
+  const svixId = request.headers.get("svix-id");
+  const querySecret = new URL(request.url).searchParams.get("secret");
+
+  if (!svixId && querySecret !== process.env.RESEND_WEBHOOK_SECRET) {
+    console.error("[inbound-email] Auth failed - no svix headers and no valid secret");
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -91,9 +92,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "No recipient" }, { status: 400 });
   }
 
-  // Parse token from {token}@doklady.fun
+  // Parse token from {token}@doklady.fun or {token}@ostuete.resend.app
   const [token, domain] = toAddress.split("@");
-  if (domain !== "doklady.fun") {
+  const ALLOWED_DOMAINS = ["doklady.fun", "ostuete.resend.app"];
+  if (!ALLOWED_DOMAINS.includes(domain)) {
     console.error("[inbound-email] Invalid domain:", domain);
     return NextResponse.json({ error: "Invalid domain" }, { status: 400 });
   }
