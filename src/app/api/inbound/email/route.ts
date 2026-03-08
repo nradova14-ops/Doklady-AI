@@ -38,10 +38,12 @@ DŮLEŽITÉ pravidlo pro záporné částky:
 interface ResendWebhookPayload {
   type: string;
   data: {
-    email_id: string;
+    id?: string;
+    email_id?: string;
     from: string;
     to: string[];
     subject: string;
+    [key: string]: unknown;
   };
 }
 
@@ -52,11 +54,14 @@ interface ResendAttachmentMeta {
 }
 
 export async function POST(request: NextRequest) {
+  console.log("[inbound-email] Webhook received");
+
   // Verify webhook secret (header or query param)
   const secret =
     request.headers.get("x-webhook-secret") ??
     new URL(request.url).searchParams.get("secret");
   if (secret !== process.env.RESEND_WEBHOOK_SECRET) {
+    console.error("[inbound-email] Auth failed - secret mismatch");
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -64,23 +69,32 @@ export async function POST(request: NextRequest) {
   try {
     payload = await request.json();
   } catch {
+    console.error("[inbound-email] Failed to parse JSON payload");
     return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
   }
 
+  console.log("[inbound-email] Payload type:", payload.type, "data keys:", Object.keys(payload.data || {}));
+
   // Only handle email.received events
   if (payload.type !== "email.received") {
+    console.log("[inbound-email] Ignoring event type:", payload.type);
     return NextResponse.json({ ok: true });
   }
 
-  const { email_id, to } = payload.data;
+  // Resend uses "id" for the email identifier
+  const email_id = payload.data.email_id || payload.data.id;
+  const { to } = payload.data;
   const toAddress = Array.isArray(to) ? to[0] : to;
+  console.log("[inbound-email] email_id:", email_id, "to:", toAddress);
   if (!toAddress) {
+    console.error("[inbound-email] No recipient in payload");
     return NextResponse.json({ error: "No recipient" }, { status: 400 });
   }
 
   // Parse token from {token}@doklady.fun
   const [token, domain] = toAddress.split("@");
   if (domain !== "doklady.fun") {
+    console.error("[inbound-email] Invalid domain:", domain);
     return NextResponse.json({ error: "Invalid domain" }, { status: 400 });
   }
 
@@ -121,8 +135,11 @@ export async function POST(request: NextRequest) {
   };
 
   if (!attachmentList || attachmentList.length === 0) {
+    console.log("[inbound-email] No attachments found for email:", email_id);
     return NextResponse.json({ success: true, processed: 0 });
   }
+
+  console.log("[inbound-email] Found", attachmentList.length, "attachments");
 
   // Filter to allowed types
   const validAttachments = attachmentList.filter((att) =>
@@ -130,6 +147,7 @@ export async function POST(request: NextRequest) {
   );
 
   if (validAttachments.length === 0) {
+    console.log("[inbound-email] No valid attachments (allowed types:", ALLOWED_CONTENT_TYPES.join(", "), ")");
     return NextResponse.json({ success: true, processed: 0 });
   }
 
@@ -203,6 +221,7 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  console.log("[inbound-email] Done. Processed:", processedCount, "of", validAttachments.length);
   return NextResponse.json({ success: true, processed: processedCount });
 }
 
