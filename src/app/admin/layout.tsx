@@ -31,11 +31,13 @@ export default function AdminLayout({
         return;
       }
 
-      const { data: profile } = await supabase
+      const { data: profile, error: profileError } = await supabase
         .from("profiles")
         .select("is_admin")
         .eq("id", user.id)
         .single();
+
+      console.log("Admin check:", { userId: user.id, profile, profileError });
 
       if (!profile?.is_admin) {
         router.replace("/dashboard");
