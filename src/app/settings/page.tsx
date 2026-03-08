@@ -13,6 +13,11 @@ export default function SettingsPage() {
   const [userEmail, setUserEmail] = useState("");
   const [loading, setLoading] = useState(true);
 
+  // Inbound email state
+  const [inboundEmail, setInboundEmail] = useState("");
+  const [regenerating, setRegenerating] = useState(false);
+  const [copied, setCopied] = useState(false);
+
   // Fakturoid form state
   const [slug, setSlug] = useState("");
   const [clientId, setClientId] = useState("");
@@ -55,6 +60,13 @@ export default function SettingsPage() {
 
     setUserEmail(user.email || "");
 
+    // Load inbound email profile
+    const profileRes = await fetch("/api/settings/profile");
+    if (profileRes.ok) {
+      const profileData = await profileRes.json();
+      setInboundEmail(profileData.inbound_email || "");
+    }
+
     // Load integrations
     const res = await fetch("/api/settings/integrations");
     if (res.ok) {
@@ -71,6 +83,38 @@ export default function SettingsPage() {
     }
 
     setLoading(false);
+  }
+
+  async function handleCopyEmail() {
+    try {
+      await navigator.clipboard.writeText(inboundEmail);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setToast({ message: "Nepodařilo se zkopírovat.", type: "error" });
+    }
+  }
+
+  async function handleRegenerateToken() {
+    if (!confirm("Opravdu chcete vygenerovat novou adresu? Stará přestane fungovat.")) return;
+    setRegenerating(true);
+    try {
+      const res = await fetch("/api/settings/profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "regenerate_token" }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setInboundEmail(data.inbound_email);
+        setToast({ message: "Nová adresa vygenerována.", type: "success" });
+      } else {
+        setToast({ message: "Nepodařilo se vygenerovat novou adresu.", type: "error" });
+      }
+    } catch {
+      setToast({ message: "Chyba při generování.", type: "error" });
+    }
+    setRegenerating(false);
   }
 
   async function handleSave() {
@@ -264,21 +308,91 @@ export default function SettingsPage() {
 
         {/* Profile Tab */}
         {activeTab === "profile" && (
-          <div className="rounded-lg border border-slate-200 bg-white p-6">
-            <h2 className="text-lg font-semibold text-slate-900 mb-4">
-              Profil
-            </h2>
-            <div className="space-y-4 max-w-md">
-              <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">
-                  E-mail
-                </label>
-                <input
-                  type="email"
-                  value={userEmail}
-                  readOnly
-                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600 cursor-not-allowed"
-                />
+          <div className="space-y-6">
+            <div className="rounded-lg border border-slate-200 bg-white p-6">
+              <h2 className="text-lg font-semibold text-slate-900 mb-4">
+                Profil
+              </h2>
+              <div className="space-y-4 max-w-md">
+                <div>
+                  <label className="block text-sm font-medium text-slate-600 mb-1">
+                    E-mail
+                  </label>
+                  <input
+                    type="email"
+                    value={userEmail}
+                    readOnly
+                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600 cursor-not-allowed"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Email inbound section */}
+            <div className="rounded-lg border border-slate-200 bg-white p-6">
+              <div className="flex items-center gap-2 mb-1">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 text-slate-600">
+                  <path d="M3 4a2 2 0 00-2 2v1.161l8.441 4.221a1.25 1.25 0 001.118 0L19 7.162V6a2 2 0 00-2-2H3z" />
+                  <path d="M19 8.839l-7.77 3.885a2.75 2.75 0 01-2.46 0L1 8.839V14a2 2 0 002 2h14a2 2 0 002-2V8.839z" />
+                </svg>
+                <h2 className="text-lg font-semibold text-slate-900">
+                  Email příjem
+                </h2>
+              </div>
+              <p className="text-sm text-slate-500 mb-4">
+                Pošlete fakturu na tuto adresu a automaticky se zpracuje.
+              </p>
+
+              <div className="space-y-4 max-w-lg">
+                <div>
+                  <label className="block text-sm font-medium text-slate-600 mb-1">
+                    Vaše adresa
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={inboundEmail}
+                      readOnly
+                      className="flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 font-mono cursor-default select-all"
+                    />
+                    <button
+                      onClick={handleCopyEmail}
+                      className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 transition-colors shrink-0"
+                      title="Zkopírovat do schránky"
+                    >
+                      {copied ? (
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-green-600">
+                          <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
+                        </svg>
+                      ) : (
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                          <path d="M7 3.5A1.5 1.5 0 018.5 2h3.879a1.5 1.5 0 011.06.44l3.122 3.12A1.5 1.5 0 0117 6.622V12.5a1.5 1.5 0 01-1.5 1.5h-1v-3.379a3 3 0 00-.879-2.121L10.5 5.379A3 3 0 008.379 4.5H7v-1z" />
+                          <path d="M4.5 6A1.5 1.5 0 003 7.5v9A1.5 1.5 0 004.5 18h7a1.5 1.5 0 001.5-1.5v-5.879a1.5 1.5 0 00-.44-1.06L9.44 6.439A1.5 1.5 0 008.378 6H4.5z" />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="rounded-lg bg-slate-50 px-4 py-3 text-sm text-slate-600 ring-1 ring-slate-200">
+                  <p className="font-medium text-slate-700 mb-2">Jak to funguje:</p>
+                  <ol className="list-decimal list-inside space-y-1">
+                    <li>Nastavte přeposílání faktur ve svém emailu na adresu výše</li>
+                    <li>Nebo přímo pošlete fakturu jako přílohu na tuto adresu</li>
+                    <li>PDF a obrázky v příloze se automaticky vytěží</li>
+                  </ol>
+                </div>
+
+                <button
+                  onClick={handleRegenerateToken}
+                  disabled={regenerating}
+                  className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-colors"
+                >
+                  {regenerating ? "Generuji..." : "Vygenerovat novou adresu"}
+                </button>
+                <p className="text-xs text-slate-400">
+                  Vygenerováním nové adresy stará přestane fungovat.
+                </p>
               </div>
             </div>
           </div>
