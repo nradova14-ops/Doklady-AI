@@ -158,8 +158,8 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      const attData = (await attRes.json()) as { data?: { download_url?: string } };
-      const downloadUrl = attData.data?.download_url;
+      const attData = (await attRes.json()) as { download_url?: string; data?: { download_url?: string } };
+      const downloadUrl = attData.download_url ?? attData.data?.download_url;
 
       if (!downloadUrl) {
         console.error("[inbound-email] No download_url for attachment:", attachment.filename, JSON.stringify(attData));
