@@ -149,7 +149,7 @@ export async function POST(request: NextRequest) {
       // Fetch attachment details (download_url) from Resend API
       console.log("[inbound-email] Fetching attachment:", attachment.id, attachment.filename);
       const attRes = await fetch(
-        `https://api.resend.com/emails/${email_id}/received/attachments/${attachment.id}`,
+        `https://api.resend.com/emails/receiving/${email_id}/attachments/${attachment.id}`,
         { headers: { Authorization: `Bearer ${resendApiKey}` } }
       );
 
