@@ -109,8 +109,9 @@ export async function POST(request: NextRequest) {
     .eq("inbound_email_token", token)
     .single();
 
+  console.log("[inbound-email] Looking up token:", JSON.stringify(token), "length:", token.length, "profileError:", profileError?.message, "profile:", profile);
   if (profileError || !profile) {
-    console.error("Unknown inbound token:", token);
+    console.error("[inbound-email] Unknown inbound token:", JSON.stringify(token), "error:", profileError?.message);
     return NextResponse.json({ error: "Unknown recipient" }, { status: 404 });
   }
 
