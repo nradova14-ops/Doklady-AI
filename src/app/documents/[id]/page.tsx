@@ -19,6 +19,16 @@ export default function DocumentDetailPage() {
   const [deleting, setDeleting] = useState(false);
   const [sendingToFakturoid, setSendingToFakturoid] = useState(false);
   const [message, setMessage] = useState("");
+  const [aresLoading, setAresLoading] = useState(false);
+  const [aresResult, setAresResult] = useState<{
+    ico: string;
+    name: string;
+    dic: string | null;
+    address: string;
+    city: string;
+    zip: string;
+  } | null>(null);
+  const [showAresModal, setShowAresModal] = useState(false);
 
   const loadDocument = useCallback(async () => {
     const supabase = createClient();
@@ -142,6 +152,40 @@ export default function DocumentDetailPage() {
     }
 
     setSendingToFakturoid(false);
+  }
+
+  async function handleAresLookup() {
+    const supplierIco = formData?.supplier?.ico;
+    if (!supplierIco) {
+      setMessage("IČO dodavatele není vyplněno.");
+      return;
+    }
+    setAresLoading(true);
+    setAresResult(null);
+    try {
+      const res = await fetch(`/api/ares?ico=${encodeURIComponent(supplierIco)}`);
+      if (res.ok) {
+        const data = await res.json();
+        setAresResult(data);
+        setShowAresModal(true);
+      } else {
+        setMessage("IČO nenalezeno v ARES.");
+      }
+    } catch {
+      setMessage("Nepodařilo se spojit s ARES.");
+    }
+    setAresLoading(false);
+  }
+
+  function applyAresData() {
+    if (!aresResult || !formData) return;
+    const updated = JSON.parse(JSON.stringify(formData));
+    if (aresResult.name) updated.supplier.name = aresResult.name;
+    if (aresResult.dic) updated.supplier.dic = aresResult.dic;
+    if (aresResult.address) updated.supplier.address = aresResult.address;
+    setFormData(updated);
+    setShowAresModal(false);
+    setMessage("Údaje dodavatele doplněny z ARES.");
   }
 
   function updateField(path: string, value: string | number | null) {
@@ -291,7 +335,34 @@ export default function DocumentDetailPage() {
                   <div className="space-y-2">
                     <Field label="Název" value={formData.supplier?.name || ""} onChange={(v) => updateField("supplier.name", v || null)} />
                     <div className="grid grid-cols-2 gap-2">
-                      <Field label="IČO" value={formData.supplier?.ico || ""} onChange={(v) => updateField("supplier.ico", v || null)} />
+                      <div>
+                        <label className="block text-xs font-medium text-slate-500 mb-0.5">
+                          IČO
+                        </label>
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="text"
+                            value={formData.supplier?.ico || ""}
+                            onChange={(e) => updateField("supplier.ico", e.target.value || null)}
+                            className="w-full rounded border border-slate-200 px-2.5 py-1.5 text-sm text-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-400"
+                          />
+                          <button
+                            onClick={handleAresLookup}
+                            disabled={aresLoading}
+                            className="rounded border border-slate-200 px-2 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors shrink-0 flex items-center gap-1"
+                            title="Ověřit v ARES"
+                          >
+                            {aresLoading ? (
+                              <span className="animate-spin inline-block w-3 h-3 border-2 border-slate-300 border-t-slate-600 rounded-full" />
+                            ) : (
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
+                                <path fillRule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clipRule="evenodd" />
+                              </svg>
+                            )}
+                            ARES
+                          </button>
+                        </div>
+                      </div>
                       <Field label="DIČ" value={formData.supplier?.dic || ""} onChange={(v) => updateField("supplier.dic", v || null)} />
                     </div>
                     <Field label="Adresa" value={formData.supplier?.address || ""} onChange={(v) => updateField("supplier.address", v || null)} />
@@ -386,6 +457,53 @@ export default function DocumentDetailPage() {
             )}
           </div>
         </div>
+        {/* ARES modal */}
+        {showAresModal && aresResult && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+            <div className="bg-white rounded-xl shadow-xl max-w-md w-full mx-4 p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <span className="text-green-600 text-lg">&#10003;</span>
+                <h3 className="text-lg font-semibold text-slate-900">
+                  Nalezeno v ARES
+                </h3>
+              </div>
+              <div className="space-y-2 text-sm">
+                <div>
+                  <span className="text-slate-500">Název:</span>{" "}
+                  <span className="font-medium text-slate-900">{aresResult.name}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500">IČO:</span>{" "}
+                  <span className="font-medium text-slate-900">{aresResult.ico}</span>
+                </div>
+                {aresResult.dic && (
+                  <div>
+                    <span className="text-slate-500">DIČ:</span>{" "}
+                    <span className="font-medium text-slate-900">{aresResult.dic}</span>
+                  </div>
+                )}
+                <div>
+                  <span className="text-slate-500">Adresa:</span>{" "}
+                  <span className="font-medium text-slate-900">{aresResult.address}</span>
+                </div>
+              </div>
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={applyAresData}
+                  className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 transition-colors"
+                >
+                  Doplnit do dokladu
+                </button>
+                <button
+                  onClick={() => setShowAresModal(false)}
+                  className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                >
+                  Zavřít
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );

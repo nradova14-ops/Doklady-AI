@@ -18,6 +18,17 @@ export default function SettingsPage() {
   const [regenerating, setRegenerating] = useState(false);
   const [copied, setCopied] = useState(false);
 
+  // Company profile state
+  const [companyName, setCompanyName] = useState("");
+  const [ico, setIco] = useState("");
+  const [dic, setDic] = useState("");
+  const [isVatPayer, setIsVatPayer] = useState(false);
+  const [companyAddress, setCompanyAddress] = useState("");
+  const [companyCity, setCompanyCity] = useState("");
+  const [companyZip, setCompanyZip] = useState("");
+  const [savingCompany, setSavingCompany] = useState(false);
+  const [loadingAres, setLoadingAres] = useState(false);
+
   // Fakturoid form state
   const [slug, setSlug] = useState("");
   const [clientId, setClientId] = useState("");
@@ -60,11 +71,18 @@ export default function SettingsPage() {
 
     setUserEmail(user.email || "");
 
-    // Load inbound email profile
+    // Load inbound email profile + company data
     const profileRes = await fetch("/api/settings/profile");
     if (profileRes.ok) {
       const profileData = await profileRes.json();
       setInboundEmail(profileData.inbound_email || "");
+      setCompanyName(profileData.company_name || "");
+      setIco(profileData.ico || "");
+      setDic(profileData.dic || "");
+      setIsVatPayer(profileData.is_vat_payer || false);
+      setCompanyAddress(profileData.address || "");
+      setCompanyCity(profileData.city || "");
+      setCompanyZip(profileData.zip || "");
     }
 
     // Load integrations
@@ -201,6 +219,60 @@ export default function SettingsPage() {
       setToast({ message: "Chyba při mazání.", type: "error" });
     }
     setDeleting(false);
+  }
+
+  async function handleAresLookup() {
+    if (!ico.trim()) {
+      setToast({ message: "Zadejte IČO.", type: "error" });
+      return;
+    }
+    setLoadingAres(true);
+    try {
+      const res = await fetch(`/api/ares?ico=${encodeURIComponent(ico.trim())}`);
+      if (res.ok) {
+        const data = await res.json();
+        setCompanyName(data.name || "");
+        if (data.dic) setDic(data.dic);
+        setCompanyAddress(data.address || "");
+        setCompanyCity(data.city || "");
+        setCompanyZip(data.zip || "");
+        setIco(data.ico || ico);
+        if (data.dic) setIsVatPayer(true);
+        setToast({ message: "Údaje načteny z ARES.", type: "success" });
+      } else {
+        setToast({ message: "IČO nenalezeno v ARES.", type: "error" });
+      }
+    } catch {
+      setToast({ message: "Nepodařilo se spojit s ARES.", type: "error" });
+    }
+    setLoadingAres(false);
+  }
+
+  async function handleSaveCompany() {
+    setSavingCompany(true);
+    try {
+      const res = await fetch("/api/settings/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          company_name: companyName,
+          ico,
+          dic,
+          address: companyAddress,
+          city: companyCity,
+          zip: companyZip,
+          is_vat_payer: isVatPayer,
+        }),
+      });
+      if (res.ok) {
+        setToast({ message: "Profil firmy uložen.", type: "success" });
+      } else {
+        setToast({ message: "Nepodařilo se uložit profil.", type: "error" });
+      }
+    } catch {
+      setToast({ message: "Chyba při ukládání.", type: "error" });
+    }
+    setSavingCompany(false);
   }
 
   async function handleLogout() {
@@ -393,6 +465,156 @@ export default function SettingsPage() {
                 <p className="text-xs text-slate-400">
                   Vygenerováním nové adresy stará přestane fungovat.
                 </p>
+              </div>
+            </div>
+
+            {/* Company profile section */}
+            <div className="rounded-lg border border-slate-200 bg-white p-6">
+              <div className="flex items-center gap-2 mb-1">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 text-slate-600">
+                  <path fillRule="evenodd" d="M4 16.5v-13h-.25a.75.75 0 010-1.5h12.5a.75.75 0 010 1.5H16v13h.25a.75.75 0 010 1.5h-3.5a.75.75 0 01-.75-.75v-2.5a.75.75 0 00-.75-.75h-2.5a.75.75 0 00-.75.75v2.5a.75.75 0 01-.75.75h-3.5a.75.75 0 010-1.5H4zm3-11a.5.5 0 01.5-.5h1a.5.5 0 01.5.5v1a.5.5 0 01-.5.5h-1a.5.5 0 01-.5-.5v-1zm.5 3.5a.5.5 0 00-.5.5v1a.5.5 0 00.5.5h1a.5.5 0 00.5-.5v-1a.5.5 0 00-.5-.5h-1zm3.5-3.5a.5.5 0 01.5-.5h1a.5.5 0 01.5.5v1a.5.5 0 01-.5.5h-1a.5.5 0 01-.5-.5v-1zm.5 3.5a.5.5 0 00-.5.5v1a.5.5 0 00.5.5h1a.5.5 0 00.5-.5v-1a.5.5 0 00-.5-.5h-1z" clipRule="evenodd" />
+                </svg>
+                <h2 className="text-lg font-semibold text-slate-900">
+                  Profil firmy
+                </h2>
+              </div>
+              <p className="text-sm text-slate-500 mb-4">
+                Údaje o vaší firmě pro automatické vyplňování dokladů.
+              </p>
+
+              <div className="space-y-4 max-w-lg">
+                {/* IČO + ARES button */}
+                <div>
+                  <label className="block text-sm font-medium text-slate-600 mb-1">
+                    IČO
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={ico}
+                      onChange={(e) => setIco(e.target.value)}
+                      placeholder="12345678"
+                      className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400"
+                    />
+                    <button
+                      onClick={handleAresLookup}
+                      disabled={loadingAres}
+                      className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-colors shrink-0 flex items-center gap-1.5"
+                    >
+                      {loadingAres ? (
+                        <>
+                          <span className="animate-spin inline-block w-3.5 h-3.5 border-2 border-slate-300 border-t-slate-600 rounded-full" />
+                          Načítám...
+                        </>
+                      ) : (
+                        <>
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                            <path fillRule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clipRule="evenodd" />
+                          </svg>
+                          Načíst z ARES
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-600 mb-1">
+                    Název firmy
+                  </label>
+                  <input
+                    type="text"
+                    value={companyName}
+                    onChange={(e) => setCompanyName(e.target.value)}
+                    placeholder="Název firmy nebo jméno OSVČ"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-600 mb-1">
+                      DIČ
+                    </label>
+                    <input
+                      type="text"
+                      value={dic}
+                      onChange={(e) => setDic(e.target.value)}
+                      placeholder="CZ12345678"
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400"
+                    />
+                  </div>
+                  <div className="flex items-end pb-1">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={isVatPayer}
+                        onClick={() => setIsVatPayer(!isVatPayer)}
+                        className={`relative w-10 h-5 rounded-full transition-colors ${
+                          isVatPayer ? "bg-slate-800" : "bg-slate-300"
+                        }`}
+                      >
+                        <span
+                          className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${
+                            isVatPayer ? "translate-x-5" : ""
+                          }`}
+                        />
+                      </button>
+                      <span className="text-sm text-slate-600">Plátce DPH</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-600 mb-1">
+                    Ulice a číslo
+                  </label>
+                  <input
+                    type="text"
+                    value={companyAddress}
+                    onChange={(e) => setCompanyAddress(e.target.value)}
+                    placeholder="Nové sady 988/2"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-600 mb-1">
+                      Město
+                    </label>
+                    <input
+                      type="text"
+                      value={companyCity}
+                      onChange={(e) => setCompanyCity(e.target.value)}
+                      placeholder="Brno"
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-600 mb-1">
+                      PSČ
+                    </label>
+                    <input
+                      type="text"
+                      value={companyZip}
+                      onChange={(e) => setCompanyZip(e.target.value)}
+                      placeholder="602 00"
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400"
+                    />
+                  </div>
+                </div>
+
+                <div className="pt-2">
+                  <button
+                    onClick={handleSaveCompany}
+                    disabled={savingCompany}
+                    className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50 transition-colors"
+                  >
+                    {savingCompany ? "Ukládám..." : "Uložit změny"}
+                  </button>
+                </div>
               </div>
             </div>
           </div>

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient, createAdminClient } from "@/lib/supabase/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { lookupIco } from "@/lib/ares";
 
 const EXTRACTION_PROMPT = `Jsi expert na vytěžování dat z českých účetních dokladů.
 Dostaneš obrázek nebo PDF faktury, účtenky nebo jiného dokladu.
@@ -152,6 +153,23 @@ export async function POST(
     }
 
     const extractedData = JSON.parse(jsonStr);
+
+    // Enrich supplier data from ARES if IČO is available
+    if (extractedData.supplier?.ico) {
+      try {
+        const aresData = await lookupIco(extractedData.supplier.ico);
+        if (aresData) {
+          if (!extractedData.supplier.name && aresData.name)
+            extractedData.supplier.name = aresData.name;
+          if (!extractedData.supplier.dic && aresData.dic)
+            extractedData.supplier.dic = aresData.dic;
+          if (!extractedData.supplier.address && aresData.address)
+            extractedData.supplier.address = aresData.address;
+        }
+      } catch {
+        // ARES lookup failure should not block extraction
+      }
+    }
 
     // Update document
     const { error: updateError } = await supabase
