@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
-const COMPANY_FIELDS = [
+const PROFILE_FIELDS = [
   "company_name",
   "ico",
   "dic",
@@ -9,6 +9,7 @@ const COMPANY_FIELDS = [
   "city",
   "zip",
   "is_vat_payer",
+  "accounting_software",
 ] as const;
 
 export async function GET() {
@@ -26,7 +27,7 @@ export async function GET() {
   const { data: existing } = await supabase
     .from("profiles")
     .select(
-      "inbound_email_token, company_name, ico, dic, address, city, zip, is_vat_payer"
+      "inbound_email_token, company_name, ico, dic, address, city, zip, is_vat_payer, accounting_software"
     )
     .eq("id", user.id)
     .single();
@@ -42,6 +43,7 @@ export async function GET() {
       city: existing.city || "",
       zip: existing.zip || "",
       is_vat_payer: existing.is_vat_payer || false,
+      accounting_software: existing.accounting_software || "none",
     });
   }
 
@@ -69,6 +71,7 @@ export async function GET() {
     city: "",
     zip: "",
     is_vat_payer: false,
+    accounting_software: "none",
   });
 }
 
@@ -136,7 +139,7 @@ export async function PATCH(request: NextRequest) {
 
   // Only allow known company fields
   const updates: Record<string, unknown> = {};
-  for (const field of COMPANY_FIELDS) {
+  for (const field of PROFILE_FIELDS) {
     if (field in body) {
       updates[field] = body[field];
     }

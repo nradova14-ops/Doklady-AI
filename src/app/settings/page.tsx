@@ -29,6 +29,10 @@ export default function SettingsPage() {
   const [savingCompany, setSavingCompany] = useState(false);
   const [loadingAres, setLoadingAres] = useState(false);
 
+  // Accounting software selection
+  const [accountingSoftware, setAccountingSoftware] = useState("none");
+  const [savingSoftware, setSavingSoftware] = useState(false);
+
   // Fakturoid form state
   const [slug, setSlug] = useState("");
   const [clientId, setClientId] = useState("");
@@ -97,6 +101,7 @@ export default function SettingsPage() {
       setCompanyAddress(profileData.address || "");
       setCompanyCity(profileData.city || "");
       setCompanyZip(profileData.zip || "");
+      setAccountingSoftware(profileData.accounting_software || "none");
     }
 
     // Load integrations
@@ -241,6 +246,25 @@ export default function SettingsPage() {
       setToast({ message: "Chyba při mazání.", type: "error" });
     }
     setDeleting(false);
+  }
+
+  async function handleSaveSoftware() {
+    setSavingSoftware(true);
+    try {
+      const res = await fetch("/api/settings/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accounting_software: accountingSoftware }),
+      });
+      if (res.ok) {
+        setToast({ message: "Účetní program uložen.", type: "success" });
+      } else {
+        setToast({ message: "Nepodařilo se uložit.", type: "error" });
+      }
+    } catch {
+      setToast({ message: "Chyba při ukládání.", type: "error" });
+    }
+    setSavingSoftware(false);
   }
 
   async function handleIdokladSave() {
@@ -722,6 +746,60 @@ export default function SettingsPage() {
         {/* Integrations Tab */}
         {activeTab === "integrations" && (
           <div className="space-y-6">
+
+          {/* Accounting software selector */}
+          <div className="rounded-lg border border-slate-200 bg-white p-6">
+            <div className="flex items-center gap-2 mb-1">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 text-slate-600">
+                <path fillRule="evenodd" d="M7.84 1.804A1 1 0 018.82 1h2.36a1 1 0 01.98.804l.331 1.652a6.993 6.993 0 011.929 1.115l1.598-.54a1 1 0 011.186.447l1.18 2.044a1 1 0 01-.205 1.251l-1.267 1.113a7.047 7.047 0 010 2.228l1.267 1.113a1 1 0 01.206 1.25l-1.18 2.045a1 1 0 01-1.187.447l-1.598-.54a6.993 6.993 0 01-1.929 1.115l-.33 1.652a1 1 0 01-.98.804H8.82a1 1 0 01-.98-.804l-.331-1.652a6.993 6.993 0 01-1.929-1.115l-1.598.54a1 1 0 01-1.186-.447l-1.18-2.044a1 1 0 01.205-1.251l1.267-1.114a7.05 7.05 0 010-2.227L1.821 7.773a1 1 0 01-.206-1.25l1.18-2.045a1 1 0 011.187-.447l1.598.54A6.993 6.993 0 017.51 3.456l.33-1.652zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
+              </svg>
+              <h2 className="text-lg font-semibold text-slate-900">
+                Účetní program
+              </h2>
+            </div>
+            <p className="text-sm text-slate-500 mb-4">
+              Vyberte program, který používáte. Podle toho se přizpůsobí rozhraní aplikace.
+            </p>
+
+            <div className="space-y-2 max-w-md">
+              {[
+                { value: "none", label: "Žádný / nevím" },
+                { value: "fakturoid", label: "Fakturoid" },
+                { value: "idoklad", label: "iDoklad" },
+                { value: "money_s3", label: "Money S3 (XML export)" },
+              ].map((option) => (
+                <label
+                  key={option.value}
+                  className={`flex items-center gap-3 rounded-lg border px-4 py-3 cursor-pointer transition-colors ${
+                    accountingSoftware === option.value
+                      ? "border-slate-800 bg-slate-50"
+                      : "border-slate-200 hover:bg-slate-50"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="accounting_software"
+                    value={option.value}
+                    checked={accountingSoftware === option.value}
+                    onChange={(e) => setAccountingSoftware(e.target.value)}
+                    className="text-slate-800 focus:ring-slate-400"
+                  />
+                  <span className="text-sm font-medium text-slate-700">
+                    {option.label}
+                  </span>
+                </label>
+              ))}
+            </div>
+
+            <button
+              onClick={handleSaveSoftware}
+              disabled={savingSoftware}
+              className="mt-4 rounded-lg bg-slate-800 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50 transition-colors"
+            >
+              {savingSoftware ? "Ukládám..." : "Uložit"}
+            </button>
+          </div>
+
           {/* Money S3 card */}
           <div className="rounded-lg border border-slate-200 bg-white p-6">
             <div className="flex items-center gap-2 mb-1">

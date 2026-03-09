@@ -30,6 +30,19 @@ export default function DocumentDetailPage() {
     zip: string;
   } | null>(null);
   const [showAresModal, setShowAresModal] = useState(false);
+  const [accountingSoftware, setAccountingSoftware] = useState("none");
+
+  // Load accounting software preference
+  useEffect(() => {
+    async function loadProfile() {
+      const res = await fetch("/api/settings/profile");
+      if (res.ok) {
+        const data = await res.json();
+        setAccountingSoftware(data.accounting_software || "none");
+      }
+    }
+    loadProfile();
+  }, []);
 
   const loadDocument = useCallback(async () => {
     const supabase = createClient();
@@ -476,26 +489,69 @@ export default function DocumentDetailPage() {
                   {saving ? "Ukládání..." : "Uložit změny"}
                 </button>
 
-                <div className="grid grid-cols-2 gap-2">
+                {/* Integration buttons — conditional based on accounting_software */}
+                {(accountingSoftware === "fakturoid" || accountingSoftware === "none") && (
                   <button
                     onClick={handleSendToFakturoid}
                     disabled={sendingToFakturoid}
-                    className="rounded-lg border border-emerald-600 bg-emerald-50 px-4 py-2.5 text-sm font-medium text-emerald-700 hover:bg-emerald-100 disabled:opacity-50 transition-colors"
+                    className="w-full rounded-lg border border-emerald-600 bg-emerald-50 px-4 py-2.5 text-sm font-medium text-emerald-700 hover:bg-emerald-100 disabled:opacity-50 transition-colors"
                   >
                     {sendingToFakturoid
                       ? "Odesílání..."
                       : "Odeslat do Fakturoidu"}
                   </button>
+                )}
+
+                {(accountingSoftware === "idoklad" || accountingSoftware === "none") && (
                   <button
                     onClick={handleSendToIdoklad}
                     disabled={sendingToIdoklad}
-                    className="rounded-lg border border-blue-600 bg-blue-50 px-4 py-2.5 text-sm font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-50 transition-colors"
+                    className="w-full rounded-lg border border-blue-600 bg-blue-50 px-4 py-2.5 text-sm font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-50 transition-colors"
                   >
                     {sendingToIdoklad
                       ? "Odesílání..."
                       : "Odeslat do iDokladu"}
                   </button>
-                </div>
+                )}
+
+                {(accountingSoftware === "money_s3" || accountingSoftware === "none") && (
+                  <a
+                    href={`/api/documents/export/money-s3`}
+                    onClick={async (e) => {
+                      e.preventDefault();
+                      try {
+                        const res = await fetch("/api/documents/export/money-s3", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ document_ids: [id], type: "received" }),
+                        });
+                        if (!res.ok) { setMessage("Export se nezdařil."); return; }
+                        const blob = await res.blob();
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = url;
+                        a.download = "money-s3-export.xml";
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                        setMessage("XML export stažen.");
+                      } catch { setMessage("Chyba při exportu."); }
+                    }}
+                    className="w-full block text-center rounded-lg border border-amber-600 bg-amber-50 px-4 py-2.5 text-sm font-medium text-amber-700 hover:bg-amber-100 transition-colors cursor-pointer"
+                  >
+                    Exportovat Money S3 XML
+                  </a>
+                )}
+
+                {accountingSoftware === "none" && (
+                  <p className="text-xs text-slate-400 flex items-center gap-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5 shrink-0">
+                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clipRule="evenodd" />
+                    </svg>
+                    Tip: Nastavte si účetní program v Nastavení a zobrazíme pouze relevantní možnosti.
+                  </p>
+                )}
               </div>
             )}
           </div>
