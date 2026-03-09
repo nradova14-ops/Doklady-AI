@@ -47,6 +47,20 @@ export default function SettingsPage() {
     error?: string;
   } | null>(null);
 
+  // iDoklad form state
+  const [idClientId, setIdClientId] = useState("");
+  const [idClientSecret, setIdClientSecret] = useState("");
+  const [idShowSecret, setIdShowSecret] = useState(false);
+  const [idIsConfigured, setIdIsConfigured] = useState(false);
+  const [idSaving, setIdSaving] = useState(false);
+  const [idTesting, setIdTesting] = useState(false);
+  const [idDeleting, setIdDeleting] = useState(false);
+  const [idTestResult, setIdTestResult] = useState<{
+    success: boolean;
+    error?: string;
+    companyName?: string;
+  } | null>(null);
+
   useEffect(() => {
     loadData();
   }, []);
@@ -97,6 +111,14 @@ export default function SettingsPage() {
         setClientId(fakturoid.client_id || "");
         setClientSecret("");
         setIsConfigured(true);
+      }
+      const idoklad = integrations?.find(
+        (i: { provider: string }) => i.provider === "idoklad"
+      );
+      if (idoklad) {
+        setIdClientId(idoklad.client_id || "");
+        setIdClientSecret("");
+        setIdIsConfigured(true);
       }
     }
 
@@ -219,6 +241,83 @@ export default function SettingsPage() {
       setToast({ message: "Chyba při mazání.", type: "error" });
     }
     setDeleting(false);
+  }
+
+  async function handleIdokladSave() {
+    if (!idClientId || (!idClientSecret && !idIsConfigured)) {
+      setToast({ message: "Vyplňte Client ID a Client Secret.", type: "error" });
+      return;
+    }
+    if (idIsConfigured && !idClientSecret) {
+      setToast({ message: "Zadejte Client Secret pro aktualizaci.", type: "error" });
+      return;
+    }
+
+    setIdSaving(true);
+    try {
+      const res = await fetch("/api/settings/integrations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          provider: "idoklad",
+          slug: "idoklad",
+          client_id: idClientId,
+          client_secret: idClientSecret,
+        }),
+      });
+
+      if (res.ok) {
+        setToast({ message: "iDoklad integrace uložena.", type: "success" });
+        setIdIsConfigured(true);
+        setIdClientSecret("");
+        setIdShowSecret(false);
+        setIdTestResult(null);
+      } else {
+        const data = await res.json();
+        setToast({ message: data.error || "Nepodařilo se uložit.", type: "error" });
+      }
+    } catch {
+      setToast({ message: "Chyba při ukládání.", type: "error" });
+    }
+    setIdSaving(false);
+  }
+
+  async function handleIdokladTest() {
+    setIdTesting(true);
+    setIdTestResult(null);
+    try {
+      const res = await fetch("/api/settings/integrations/idoklad-test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider: "idoklad" }),
+      });
+      const data = await res.json();
+      setIdTestResult(data);
+    } catch {
+      setIdTestResult({ success: false, error: "Chyba při testování." });
+    }
+    setIdTesting(false);
+  }
+
+  async function handleIdokladDelete() {
+    if (!confirm("Opravdu chcete smazat iDoklad integraci?")) return;
+    setIdDeleting(true);
+    try {
+      const res = await fetch(
+        "/api/settings/integrations?provider=idoklad",
+        { method: "DELETE" }
+      );
+      if (res.ok) {
+        setIdClientId("");
+        setIdClientSecret("");
+        setIdIsConfigured(false);
+        setIdTestResult(null);
+        setToast({ message: "iDoklad integrace smazána.", type: "success" });
+      }
+    } catch {
+      setToast({ message: "Chyba při mazání.", type: "error" });
+    }
+    setIdDeleting(false);
   }
 
   async function handleAresLookup() {
@@ -795,6 +894,127 @@ export default function SettingsPage() {
                   {testResult.success
                     ? "Připojení k Fakturoid je funkční."
                     : `Chyba: ${testResult.error}`}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* iDoklad card */}
+          <div className="rounded-lg border border-slate-200 bg-white p-6">
+            <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 text-slate-600">
+                  <path fillRule="evenodd" d="M1 5.25A2.25 2.25 0 013.25 3h13.5A2.25 2.25 0 0119 5.25v9.5A2.25 2.25 0 0116.75 17H3.25A2.25 2.25 0 011 14.75v-9.5zm1.5 5.81v3.69c0 .414.336.75.75.75h13.5a.75.75 0 00.75-.75v-3.69l-5.027 2.514a3.25 3.25 0 01-2.946 0L1.5 11.06zm0-1.248l5.527 2.764a1.75 1.75 0 001.586 0L15.14 9.812l.001-.001L16.5 9.11V5.25a.75.75 0 00-.75-.75H3.25a.75.75 0 00-.75.75v4.812l-.001.001-.999.5v-.001z" clipRule="evenodd" />
+                </svg>
+                <h2 className="text-lg font-semibold text-slate-900">
+                  iDoklad
+                </h2>
+              </div>
+              {idIsConfigured && (
+                <span className="inline-flex items-center rounded-full bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">
+                  Nakonfigurováno
+                </span>
+              )}
+            </div>
+            <p className="text-sm text-slate-500 mb-5">
+              Propojte svůj iDoklad účet pro odesílání přijatých faktur.
+            </p>
+
+            <div className="space-y-4 max-w-md">
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-1">
+                  Client ID
+                </label>
+                <input
+                  type="text"
+                  value={idClientId}
+                  onChange={(e) => setIdClientId(e.target.value)}
+                  placeholder="Váš iDoklad Client ID"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-1">
+                  Client Secret
+                </label>
+                <div className="relative">
+                  <input
+                    type={idShowSecret ? "text" : "password"}
+                    value={idClientSecret}
+                    onChange={(e) => setIdClientSecret(e.target.value)}
+                    placeholder={
+                      idIsConfigured ? "••••••••••••••••" : "Váš client secret"
+                    }
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setIdShowSecret(!idShowSecret)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
+                    title={idShowSecret ? "Skrýt" : "Zobrazit"}
+                  >
+                    {idShowSecret ? (
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                        <path fillRule="evenodd" d="M3.28 2.22a.75.75 0 00-1.06 1.06l14.5 14.5a.75.75 0 101.06-1.06l-1.745-1.745a10.029 10.029 0 003.3-4.38 1.651 1.651 0 000-1.185A10.004 10.004 0 009.999 3a9.956 9.956 0 00-4.744 1.194L3.28 2.22zM7.752 6.69l1.092 1.092a2.5 2.5 0 013.374 3.373l1.092 1.092a4 4 0 00-5.558-5.558z" clipRule="evenodd" />
+                        <path d="M10.748 13.93l2.523 2.523a9.987 9.987 0 01-3.27.547c-4.258 0-7.894-2.66-9.337-6.41a1.651 1.651 0 010-1.186A10.007 10.007 0 012.839 6.02L6.07 9.252a4 4 0 004.678 4.678z" />
+                      </svg>
+                    ) : (
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                        <path d="M10 12.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5z" />
+                        <path fillRule="evenodd" d="M.664 10.59a1.651 1.651 0 010-1.186A10.004 10.004 0 0110 3c4.257 0 7.893 2.66 9.336 6.41.147.381.146.804 0 1.186A10.004 10.004 0 0110 17c-4.257 0-7.893-2.66-9.336-6.41zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
+                {idIsConfigured && (
+                  <p className="text-xs text-slate-400 mt-1">
+                    Ponechte prázdné pokud nechcete měnit.
+                  </p>
+                )}
+              </div>
+
+              {/* Action buttons */}
+              <div className="flex items-center gap-3 pt-2">
+                <button
+                  onClick={handleIdokladSave}
+                  disabled={idSaving}
+                  className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50 transition-colors"
+                >
+                  {idSaving ? "Ukládám..." : "Uložit"}
+                </button>
+                {idIsConfigured && (
+                  <>
+                    <button
+                      onClick={handleIdokladTest}
+                      disabled={idTesting}
+                      className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-colors"
+                    >
+                      {idTesting ? "Testuji..." : "Otestovat připojení"}
+                    </button>
+                    <button
+                      onClick={handleIdokladDelete}
+                      disabled={idDeleting}
+                      className="rounded-lg border border-red-200 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 transition-colors"
+                    >
+                      Smazat
+                    </button>
+                  </>
+                )}
+              </div>
+
+              {/* Test result */}
+              {idTestResult && (
+                <div
+                  className={`rounded-lg px-4 py-3 text-sm ${
+                    idTestResult.success
+                      ? "bg-green-50 text-green-800 ring-1 ring-green-200"
+                      : "bg-red-50 text-red-800 ring-1 ring-red-200"
+                  }`}
+                >
+                  {idTestResult.success
+                    ? `Připojení k iDoklad je funkční.${idTestResult.companyName ? ` Firma: ${idTestResult.companyName}` : ""}`
+                    : `Chyba: ${idTestResult.error}`}
                 </div>
               )}
             </div>

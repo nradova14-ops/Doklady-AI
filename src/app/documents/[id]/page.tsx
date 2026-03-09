@@ -18,6 +18,7 @@ export default function DocumentDetailPage() {
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [sendingToFakturoid, setSendingToFakturoid] = useState(false);
+  const [sendingToIdoklad, setSendingToIdoklad] = useState(false);
   const [message, setMessage] = useState("");
   const [aresLoading, setAresLoading] = useState(false);
   const [aresResult, setAresResult] = useState<{
@@ -152,6 +153,37 @@ export default function DocumentDetailPage() {
     }
 
     setSendingToFakturoid(false);
+  }
+
+  async function handleSendToIdoklad() {
+    setSendingToIdoklad(true);
+    setMessage("");
+
+    try {
+      const res = await fetch(`/api/documents/${id}/idoklad`, {
+        method: "POST",
+      });
+
+      if (!res.ok) {
+        const body = await res.json();
+        throw new Error(body.error || "Chyba při odesílání.");
+      }
+
+      const result = await res.json();
+      setMessage(
+        `Odesláno do iDokladu jako přijatá faktura #${result.invoiceNumber}`
+      );
+      // Reload to get updated sync info
+      loadDocument();
+    } catch (err) {
+      setMessage(
+        err instanceof Error
+          ? err.message
+          : "Nepodařilo se odeslat do iDokladu."
+      );
+    }
+
+    setSendingToIdoklad(false);
   }
 
   async function handleAresLookup() {
@@ -444,15 +476,26 @@ export default function DocumentDetailPage() {
                   {saving ? "Ukládání..." : "Uložit změny"}
                 </button>
 
-                <button
-                  onClick={handleSendToFakturoid}
-                  disabled={sendingToFakturoid}
-                  className="w-full rounded-lg border border-emerald-600 bg-emerald-50 px-4 py-2.5 text-sm font-medium text-emerald-700 hover:bg-emerald-100 disabled:opacity-50 transition-colors"
-                >
-                  {sendingToFakturoid
-                    ? "Odesílání..."
-                    : "Odeslat do Fakturoidu"}
-                </button>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={handleSendToFakturoid}
+                    disabled={sendingToFakturoid}
+                    className="rounded-lg border border-emerald-600 bg-emerald-50 px-4 py-2.5 text-sm font-medium text-emerald-700 hover:bg-emerald-100 disabled:opacity-50 transition-colors"
+                  >
+                    {sendingToFakturoid
+                      ? "Odesílání..."
+                      : "Odeslat do Fakturoidu"}
+                  </button>
+                  <button
+                    onClick={handleSendToIdoklad}
+                    disabled={sendingToIdoklad}
+                    className="rounded-lg border border-blue-600 bg-blue-50 px-4 py-2.5 text-sm font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-50 transition-colors"
+                  >
+                    {sendingToIdoklad
+                      ? "Odesílání..."
+                      : "Odeslat do iDokladu"}
+                  </button>
+                </div>
               </div>
             )}
           </div>
