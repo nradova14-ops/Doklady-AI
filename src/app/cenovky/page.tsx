@@ -12,10 +12,42 @@ interface PriceTag {
   cenaZbozi: string;
 }
 
+const beerTypes = [
+  { label: "Světlý ležák", category: "lezak" },
+  { label: "Tmavý ležák", category: "lezak" },
+  { label: "Polotmavý ležák", category: "lezak" },
+  { label: "IPA", category: "svrchni" },
+  { label: "APA", category: "svrchni" },
+  { label: "Pale Ale", category: "svrchni" },
+  { label: "Wheat / Pšeničné", category: "svrchni" },
+  { label: "Sour / Kyseláč", category: "kyselac" },
+  { label: "Gose", category: "kyselac" },
+  { label: "Stout", category: "stout" },
+  { label: "Porter", category: "stout" },
+] as const;
+
+type Category = (typeof beerTypes)[number]["category"];
+
+const categoryColors: Record<Category, { text: string; bg: string; border: string; print: string }> = {
+  lezak:   { text: "text-blue-700",   bg: "bg-blue-50",    border: "border-blue-300", print: "#1d4ed8" },
+  svrchni: { text: "text-green-700",  bg: "bg-green-50",   border: "border-green-300", print: "#15803d" },
+  kyselac: { text: "text-orange-600", bg: "bg-orange-50",  border: "border-orange-300", print: "#ea580c" },
+  stout:   { text: "text-purple-700", bg: "bg-purple-50",  border: "border-purple-300", print: "#7e22ce" },
+};
+
+function getCategoryForType(typ: string): Category {
+  const found = beerTypes.find((bt) => bt.label === typ);
+  return found?.category ?? "lezak";
+}
+
+function getColors(typ: string) {
+  return categoryColors[getCategoryForType(typ)];
+}
+
 const emptyTag: Omit<PriceTag, "id"> = {
   nazev: "",
   stupen: "",
-  typ: "",
+  typ: beerTypes[0].label,
   objem: "",
   cenaZaLitr: "",
   cenaZbozi: "",
@@ -27,7 +59,7 @@ export default function CenovkyPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const printRef = useRef<HTMLDivElement>(null);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
@@ -43,7 +75,14 @@ export default function CenovkyPage() {
   };
 
   const handleEdit = (tag: PriceTag) => {
-    setForm({ nazev: tag.nazev, stupen: tag.stupen, typ: tag.typ, objem: tag.objem, cenaZaLitr: tag.cenaZaLitr, cenaZbozi: tag.cenaZbozi });
+    setForm({
+      nazev: tag.nazev,
+      stupen: tag.stupen,
+      typ: tag.typ,
+      objem: tag.objem,
+      cenaZaLitr: tag.cenaZaLitr,
+      cenaZbozi: tag.cenaZbozi,
+    });
     setEditingId(tag.id);
   };
 
@@ -59,81 +98,101 @@ export default function CenovkyPage() {
     if (!printRef.current) return;
     const printWindow = window.open("", "_blank");
     if (!printWindow) return;
-    printWindow.document.write(`
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Cenovky - Tisk</title>
-        <style>
-          * { margin: 0; padding: 0; box-sizing: border-box; }
-          body { font-family: 'Segoe UI', Arial, sans-serif; }
-          .grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 12px;
-            padding: 12px;
-          }
-          .tag {
-            border: 2px solid #1a1a2e;
-            border-radius: 10px;
-            padding: 14px;
-            page-break-inside: avoid;
-            background: #fff;
-          }
-          .tag-name {
-            font-size: 20px;
-            font-weight: 800;
-            color: #1a1a2e;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 2px;
-          }
-          .tag-type {
-            font-size: 13px;
-            color: #666;
-            margin-bottom: 8px;
-          }
-          .tag-degree {
-            display: inline-block;
-            background: #f97316;
-            color: #fff;
-            font-weight: 700;
-            font-size: 14px;
-            padding: 2px 10px;
-            border-radius: 999px;
-            margin-bottom: 8px;
-          }
-          .tag-details {
-            display: flex;
-            justify-content: space-between;
-            font-size: 12px;
-            color: #555;
-            border-top: 1px solid #e5e5e5;
-            padding-top: 6px;
-            margin-bottom: 8px;
-          }
-          .tag-price {
-            font-size: 28px;
-            font-weight: 900;
-            color: #1a1a2e;
-            text-align: right;
-          }
-          .tag-price span {
-            font-size: 14px;
-            font-weight: 400;
-            color: #666;
-          }
-          @media print {
-            .grid { padding: 0; gap: 8px; }
-          }
-        </style>
-      </head>
-      <body>
-        ${printRef.current.innerHTML}
-        <script>window.onload = function() { window.print(); }</script>
-      </body>
-      </html>
-    `);
+
+    const tagsHtml = tags
+      .map((tag) => {
+        const color = getColors(tag.typ).print;
+        return `
+        <div class="tag" style="border-color: ${color};">
+          <div class="tag-name">${tag.nazev}</div>
+          <div class="tag-type" style="color: ${color}; font-weight: 700;">${tag.typ}</div>
+          ${tag.stupen ? `<div class="tag-degree" style="background: ${color};">${tag.stupen}</div>` : ""}
+          <div class="tag-details">
+            ${tag.objem ? `<span>${tag.objem} ml</span>` : "<span></span>"}
+            ${tag.cenaZaLitr ? `<span>${tag.cenaZaLitr} Kč/l</span>` : "<span></span>"}
+          </div>
+          <div class="tag-price">${tag.cenaZbozi} <span>Kč</span></div>
+        </div>`;
+      })
+      .join("");
+
+    printWindow.document.write(`<!DOCTYPE html>
+<html>
+<head>
+  <title>Cenovky - Tisk</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 10mm;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', Arial, sans-serif; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(6, 30mm);
+      grid-auto-rows: 30mm;
+      gap: 3mm;
+      justify-content: center;
+    }
+    .tag {
+      width: 30mm;
+      height: 30mm;
+      border: 1.5pt solid #1a1a2e;
+      border-radius: 2mm;
+      padding: 2mm;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      overflow: hidden;
+      page-break-inside: avoid;
+    }
+    .tag-name {
+      font-size: 8pt;
+      font-weight: 800;
+      color: #1a1a2e;
+      text-transform: uppercase;
+      line-height: 1.1;
+    }
+    .tag-type {
+      font-size: 5.5pt;
+      line-height: 1.2;
+    }
+    .tag-degree {
+      display: inline-block;
+      color: #fff;
+      font-weight: 700;
+      font-size: 6pt;
+      padding: 0.5mm 2mm;
+      border-radius: 999px;
+      align-self: flex-start;
+    }
+    .tag-details {
+      display: flex;
+      justify-content: space-between;
+      font-size: 5pt;
+      color: #555;
+      border-top: 0.5pt solid #ddd;
+      padding-top: 1mm;
+    }
+    .tag-price {
+      font-size: 14pt;
+      font-weight: 900;
+      color: #1a1a2e;
+      text-align: right;
+      line-height: 1;
+    }
+    .tag-price span {
+      font-size: 7pt;
+      font-weight: 400;
+      color: #666;
+    }
+  </style>
+</head>
+<body>
+  <div class="grid">${tagsHtml}</div>
+  <script>window.onload = function() { window.print(); }<\/script>
+</body>
+</html>`);
     printWindow.document.close();
   };
 
@@ -141,14 +200,9 @@ export default function CenovkyPage() {
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <div className="bg-primary-900 text-white">
-        <div className="max-w-6xl mx-auto px-6 py-6 flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold">Cenovky</h1>
-            <p className="text-primary-300 text-sm mt-1">Vytvářejte cenové štítky na pivo</p>
-          </div>
-          <a href="/dashboard" className="text-sm text-primary-300 hover:text-white transition-colors">
-            &larr; Zpět na dashboard
-          </a>
+        <div className="max-w-6xl mx-auto px-6 py-6">
+          <h1 className="text-2xl font-bold">Cenovky na pivo</h1>
+          <p className="text-primary-300 text-sm mt-1">Vytvořte a vytiskněte cenové štítky 3&times;3 cm</p>
         </div>
       </div>
 
@@ -180,14 +234,19 @@ export default function CenovkyPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Typ</label>
-              <input
+              <label className="block text-sm font-medium text-gray-700 mb-1">Druh piva</label>
+              <select
                 name="typ"
                 value={form.typ}
                 onChange={handleChange}
-                placeholder="např. světlý ležák"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-accent-400 focus:border-accent-400 outline-none"
-              />
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-accent-400 focus:border-accent-400 outline-none bg-white"
+              >
+                {beerTypes.map((bt) => (
+                  <option key={bt.label} value={bt.label}>
+                    {bt.label}
+                  </option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Objem (ml)</label>
@@ -230,7 +289,10 @@ export default function CenovkyPage() {
             </button>
             {editingId && (
               <button
-                onClick={() => { setEditingId(null); setForm(emptyTag); }}
+                onClick={() => {
+                  setEditingId(null);
+                  setForm(emptyTag);
+                }}
                 className="text-gray-500 hover:text-gray-700 font-medium px-4 py-2 rounded-lg text-sm transition-colors"
               >
                 Zrušit
@@ -257,14 +319,14 @@ export default function CenovkyPage() {
               </button>
             </div>
 
-            {/* Editable table */}
+            {/* Table */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-8">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Název</th>
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Stupeň</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Typ</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Druh</th>
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Objem</th>
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Cena/l</th>
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Cena</th>
@@ -272,67 +334,88 @@ export default function CenovkyPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {tags.map((tag) => (
-                    <tr key={tag.id} className="border-b border-gray-100 hover:bg-gray-50">
-                      <td className="px-4 py-3 font-semibold text-primary-900">{tag.nazev}</td>
-                      <td className="px-4 py-3">
-                        {tag.stupen && (
-                          <span className="bg-accent-100 text-accent-700 text-xs font-semibold px-2 py-0.5 rounded-full">
-                            {tag.stupen}
+                  {tags.map((tag) => {
+                    const colors = getColors(tag.typ);
+                    return (
+                      <tr key={tag.id} className="border-b border-gray-100 hover:bg-gray-50">
+                        <td className="px-4 py-3 font-semibold text-primary-900">{tag.nazev}</td>
+                        <td className="px-4 py-3">
+                          {tag.stupen && (
+                            <span className="bg-gray-100 text-gray-700 text-xs font-semibold px-2 py-0.5 rounded-full">
+                              {tag.stupen}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${colors.bg} ${colors.text}`}>
+                            {tag.typ}
                           </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-gray-600">{tag.typ}</td>
-                      <td className="px-4 py-3 text-gray-600">{tag.objem ? `${tag.objem} ml` : ""}</td>
-                      <td className="px-4 py-3 text-gray-600">{tag.cenaZaLitr ? `${tag.cenaZaLitr} Kč` : ""}</td>
-                      <td className="px-4 py-3 font-bold text-primary-900">{tag.cenaZbozi} Kč</td>
-                      <td className="px-4 py-3 text-right">
-                        <button
-                          onClick={() => handleEdit(tag)}
-                          className="text-accent-500 hover:text-accent-700 font-medium mr-3 transition-colors"
-                        >
-                          Upravit
-                        </button>
-                        <button
-                          onClick={() => handleDelete(tag.id)}
-                          className="text-red-400 hover:text-red-600 font-medium transition-colors"
-                        >
-                          Smazat
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                        <td className="px-4 py-3 text-gray-600">{tag.objem ? `${tag.objem} ml` : ""}</td>
+                        <td className="px-4 py-3 text-gray-600">{tag.cenaZaLitr ? `${tag.cenaZaLitr} Kč` : ""}</td>
+                        <td className="px-4 py-3 font-bold text-primary-900">{tag.cenaZbozi} Kč</td>
+                        <td className="px-4 py-3 text-right">
+                          <button
+                            onClick={() => handleEdit(tag)}
+                            className="text-accent-500 hover:text-accent-700 font-medium mr-3 transition-colors"
+                          >
+                            Upravit
+                          </button>
+                          <button
+                            onClick={() => handleDelete(tag.id)}
+                            className="text-red-400 hover:text-red-600 font-medium transition-colors"
+                          >
+                            Smazat
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
 
             {/* Print preview */}
-            <h2 className="text-lg font-semibold text-primary-900 mb-4">Náhled tisku</h2>
-            <div ref={printRef} className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {tags.map((tag) => (
-                  <div key={tag.id} className="border-2 border-primary-900 rounded-xl p-4">
-                    <div className="text-xl font-extrabold text-primary-900 uppercase tracking-wide">
-                      {tag.nazev}
+            <h2 className="text-lg font-semibold text-primary-900 mb-4">Náhled cenovek (3&times;3 cm)</h2>
+            <div ref={printRef} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+              <div className="flex flex-wrap gap-3">
+                {tags.map((tag) => {
+                  const colors = getColors(tag.typ);
+                  return (
+                    <div
+                      key={tag.id}
+                      className={`border-2 ${colors.border} rounded-lg p-2 flex flex-col justify-between`}
+                      style={{ width: "113px", height: "113px" }}
+                    >
+                      <div>
+                        <div className="text-[9px] font-extrabold text-primary-900 uppercase leading-tight truncate">
+                          {tag.nazev}
+                        </div>
+                        <div className={`text-[7px] font-bold ${colors.text} leading-tight truncate`}>
+                          {tag.typ}
+                        </div>
+                        {tag.stupen && (
+                          <span
+                            className="inline-block text-white text-[6px] font-bold px-1.5 py-px rounded-full mt-0.5"
+                            style={{ backgroundColor: colors.print }}
+                          >
+                            {tag.stupen}
+                          </span>
+                        )}
+                      </div>
+                      <div>
+                        <div className="flex justify-between text-[5.5px] text-gray-500 border-t border-gray-200 pt-0.5 mb-0.5">
+                          {tag.objem && <span>{tag.objem} ml</span>}
+                          {tag.cenaZaLitr && <span>{tag.cenaZaLitr} Kč/l</span>}
+                        </div>
+                        <div className="text-right leading-none">
+                          <span className="text-[16px] font-black text-primary-900">{tag.cenaZbozi}</span>
+                          <span className="text-[8px] text-gray-500 ml-0.5">Kč</span>
+                        </div>
+                      </div>
                     </div>
-                    {tag.typ && (
-                      <div className="text-xs text-gray-500 mb-2">{tag.typ}</div>
-                    )}
-                    {tag.stupen && (
-                      <span className="inline-block bg-accent-500 text-white text-sm font-bold px-3 py-0.5 rounded-full mb-2">
-                        {tag.stupen}
-                      </span>
-                    )}
-                    <div className="flex justify-between text-xs text-gray-500 border-t border-gray-200 pt-2 mb-2">
-                      {tag.objem && <span>{tag.objem} ml</span>}
-                      {tag.cenaZaLitr && <span>Cena za 1 l: {tag.cenaZaLitr} Kč</span>}
-                    </div>
-                    <div className="text-right">
-                      <span className="text-3xl font-black text-primary-900">{tag.cenaZbozi}</span>
-                      <span className="text-sm text-gray-500 ml-1">Kč</span>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </>
