@@ -125,8 +125,9 @@ async function createContact(
     address?: string;
   }
 ): Promise<IdokladContact> {
-  const payload: Record<string, string> = {
+  const payload: Record<string, string | number> = {
     CompanyName: supplier.name,
+    CountryId: 2, // Czech Republic
   };
   if (supplier.ico) payload.IdentificationNumber = supplier.ico;
   if (supplier.dic) payload.VatIdentificationNumber = supplier.dic;
