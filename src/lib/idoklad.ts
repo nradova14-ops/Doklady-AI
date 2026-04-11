@@ -104,7 +104,9 @@ export async function findContactByIco(
   if (!response.ok) return null;
 
   const data = await response.json();
-  const items = data.Items || data;
+  // iDoklad wraps list responses in { Data: { Items: [...] } } or { Data: [...] }
+  const unwrapped = data.Data || data;
+  const items = unwrapped.Items || (Array.isArray(unwrapped) ? unwrapped : []);
 
   if (Array.isArray(items) && items.length > 0) {
     return items[0];
@@ -145,7 +147,9 @@ async function createContact(
     throw new Error(`Failed to create iDoklad contact (${response.status}): ${body}`);
   }
 
-  return JSON.parse(body);
+  const result = JSON.parse(body);
+  // iDoklad wraps responses in { Data: {...} }
+  return result.Data || result;
 }
 
 /**
@@ -336,7 +340,8 @@ export async function sendToIdoklad(
     throw new Error(errorMsg);
   }
 
-  const invoice = JSON.parse(responseBody);
+  const invoiceResponse = JSON.parse(responseBody);
+  const invoice = invoiceResponse.Data || invoiceResponse;
   return {
     invoiceId: invoice.Id,
     invoiceNumber: invoice.DocumentNumber || String(invoice.Id),
