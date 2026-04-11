@@ -298,7 +298,9 @@ export async function sendToIdoklad(
     throw new Error(`Failed to fetch iDoklad invoice template (${defaultRes.status})`);
   }
 
-  const payload = await defaultRes.json();
+  const defaultBody = await defaultRes.json();
+  // iDoklad wraps responses in { Data: {...}, IsSuccess: true }
+  const payload = defaultBody.Data || defaultBody;
 
   // Override with our data
   payload.PartnerId = supplierId;
