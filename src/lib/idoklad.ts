@@ -214,7 +214,8 @@ interface ReceivedInvoiceItem {
  */
 export async function sendToIdoklad(
   userId: string,
-  extractedData: Record<string, unknown>
+  extractedData: Record<string, unknown>,
+  options?: { isVatPayer?: boolean }
 ): Promise<{ invoiceId: number; invoiceNumber: string }> {
   const token = await getTokenForUser(userId);
 
@@ -235,7 +236,13 @@ export async function sendToIdoklad(
   const supplier = data.supplier || {};
   const supplierId = await findOrCreateContact(token, supplier);
 
-  const globalVatRate = data.vat_rate != null ? Number(data.vat_rate) : 21;
+  const isVatPayer = options?.isVatPayer ?? false;
+
+  // For non-VAT payers: all items use 0% VAT and total_amount is the final price
+  // For VAT payers: use extracted vat_rate and vat_base
+  const itemVatRateType = isVatPayer
+    ? vatRateType(data.vat_rate != null ? Number(data.vat_rate) : 21)
+    : 2; // 0% / exempt
 
   // Build invoice items
   const items: ReceivedInvoiceItem[] = (data.items || []).map((item) => ({
@@ -246,51 +253,24 @@ export async function sendToIdoklad(
       item.unit_price != null
         ? Math.round(Number(item.unit_price) * 100) / 100
         : 0,
-    PriceType: 0, // without VAT
-    VatRateType: vatRateType(globalVatRate),
+    PriceType: isVatPayer ? 0 : 1, // 0 = without VAT, 1 = with VAT
+    VatRateType: itemVatRateType,
   }));
 
   // If no line items, create a single line from totals
   if (items.length === 0 && data.total_amount != null) {
+    const unitPrice = isVatPayer
+      ? Math.round(Number(data.vat_base ?? data.total_amount) * 100) / 100
+      : Math.round(Number(data.total_amount) * 100) / 100;
+
     items.push({
       Name: data.document_type || "Položka",
       Amount: 1,
       Unit: "ks",
-      UnitPrice:
-        Math.round(Number(data.vat_base ?? data.total_amount) * 100) / 100 || 0,
-      PriceType: 0,
-      VatRateType: vatRateType(globalVatRate),
+      UnitPrice: unitPrice || 0,
+      PriceType: isVatPayer ? 0 : 1,
+      VatRateType: itemVatRateType,
     });
-  }
-
-  // Add rounding adjustment if needed
-  if (data.total_amount != null && items.length > 0) {
-    const computedTotal = items.reduce((sum, line) => {
-      const lineBase = line.Amount * line.UnitPrice;
-      const rate =
-        line.VatRateType === 0
-          ? 21
-          : line.VatRateType === 1
-          ? 12
-          : line.VatRateType === 3
-          ? 15
-          : 0;
-      const lineVat = Math.round(lineBase * (rate / 100) * 100) / 100;
-      return sum + lineBase + lineVat;
-    }, 0);
-    const invoiceTotal = Number(data.total_amount);
-    const roundingDiff = Math.round((invoiceTotal - computedTotal) * 100) / 100;
-
-    if (Math.abs(roundingDiff) > 0.001) {
-      items.push({
-        Name: "Zaokrouhlení",
-        Amount: 1,
-        Unit: "ks",
-        UnitPrice: roundingDiff,
-        PriceType: 0,
-        VatRateType: 2, // 0% VAT
-      });
-    }
   }
 
   // Fetch default template to get all required fields pre-filled

@@ -35,8 +35,17 @@ export async function POST(
     );
   }
 
+  // Load user profile to check VAT payer status
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("is_vat_payer")
+    .eq("id", user.id)
+    .single();
+
   try {
-    const result = await sendToIdoklad(user.id, doc.extracted_data);
+    const result = await sendToIdoklad(user.id, doc.extracted_data, {
+      isVatPayer: profile?.is_vat_payer ?? false,
+    });
 
     // Save sync info to document
     await supabase
