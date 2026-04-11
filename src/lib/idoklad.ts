@@ -289,10 +289,20 @@ export async function sendToIdoklad(
     }
   }
 
-  const payload: Record<string, unknown> = {
-    SupplierId: supplierId,
-    Items: items,
-  };
+  // Fetch default template to get all required fields pre-filled
+  const defaultRes = await fetch(`${IDOKLAD_API_BASE}/ReceivedInvoices/Default`, {
+    headers: apiHeaders(token),
+  });
+
+  if (!defaultRes.ok) {
+    throw new Error(`Failed to fetch iDoklad invoice template (${defaultRes.status})`);
+  }
+
+  const payload = await defaultRes.json();
+
+  // Override with our data
+  payload.PartnerId = supplierId;
+  payload.Items = items;
 
   if (data.invoice_number) payload.DocumentNumber = data.invoice_number;
   if (data.variable_symbol) payload.VariableSymbol = data.variable_symbol;
