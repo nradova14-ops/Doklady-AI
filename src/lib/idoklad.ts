@@ -238,39 +238,49 @@ export async function sendToIdoklad(
 
   const isVatPayer = options?.isVatPayer ?? false;
 
-  // For non-VAT payers: all items use 0% VAT and total_amount is the final price
-  // For VAT payers: use extracted vat_rate and vat_base
-  const itemVatRateType = isVatPayer
-    ? vatRateType(data.vat_rate != null ? Number(data.vat_rate) : 21)
-    : 2; // 0% / exempt
+  const items: ReceivedInvoiceItem[] = [];
 
-  // Build invoice items
-  const items: ReceivedInvoiceItem[] = (data.items || []).map((item) => ({
-    Name: item.description || "Položka",
-    Amount: item.quantity != null ? Number(item.quantity) : 1,
-    Unit: "ks",
-    UnitPrice:
-      item.unit_price != null
-        ? Math.round(Number(item.unit_price) * 100) / 100
-        : 0,
-    PriceType: isVatPayer ? 0 : 1, // 0 = without VAT, 1 = with VAT
-    VatRateType: itemVatRateType,
-  }));
-
-  // If no line items, create a single line from totals
-  if (items.length === 0 && data.total_amount != null) {
-    const unitPrice = isVatPayer
-      ? Math.round(Number(data.vat_base ?? data.total_amount) * 100) / 100
-      : Math.round(Number(data.total_amount) * 100) / 100;
-
+  if (!isVatPayer) {
+    // Non-VAT payer: single item with total_amount as the final price, 0% VAT
     items.push({
-      Name: data.document_type || "Položka",
+      Name: data.document_type || "Faktura",
       Amount: 1,
       Unit: "ks",
-      UnitPrice: unitPrice || 0,
-      PriceType: isVatPayer ? 0 : 1,
-      VatRateType: itemVatRateType,
+      UnitPrice: Math.round(Number(data.total_amount ?? 0) * 100) / 100,
+      PriceType: 1, // price includes VAT
+      VatRateType: 2, // 0% / exempt
     });
+  } else {
+    // VAT payer: use extracted line items with VAT breakdown
+    const globalVatRate = data.vat_rate != null ? Number(data.vat_rate) : 21;
+    const itemVatRateType = vatRateType(globalVatRate);
+
+    for (const item of data.items || []) {
+      items.push({
+        Name: item.description || "Položka",
+        Amount: item.quantity != null ? Number(item.quantity) : 1,
+        Unit: "ks",
+        UnitPrice:
+          item.unit_price != null
+            ? Math.round(Number(item.unit_price) * 100) / 100
+            : 0,
+        PriceType: 0, // without VAT
+        VatRateType: itemVatRateType,
+      });
+    }
+
+    // If no line items, create a single line from totals
+    if (items.length === 0 && data.total_amount != null) {
+      items.push({
+        Name: data.document_type || "Položka",
+        Amount: 1,
+        Unit: "ks",
+        UnitPrice:
+          Math.round(Number(data.vat_base ?? data.total_amount) * 100) / 100 || 0,
+        PriceType: 0,
+        VatRateType: itemVatRateType,
+      });
+    }
   }
 
   // Fetch default template to get all required fields pre-filled
