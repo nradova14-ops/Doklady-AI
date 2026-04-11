@@ -291,7 +291,7 @@ export async function sendToIdoklad(
 
   const payload: Record<string, unknown> = {
     SupplierId: supplierId,
-    ReceivedInvoiceItems: items,
+    Items: items,
   };
 
   if (data.invoice_number) payload.DocumentNumber = data.invoice_number;
