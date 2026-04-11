@@ -92,24 +92,66 @@ interface IdokladContact {
 }
 
 /**
- * Search for a contact by IČO.
+ * Search for a contact by IČO — fetches all contacts and searches locally.
  */
 export async function findContactByIco(
   token: string,
   ico: string
 ): Promise<IdokladContact | null> {
-  const url = `${IDOKLAD_API_BASE}/Contacts?filter=IdentificationNumber~eq~'${ico}'`;
-  const response = await fetch(url, { headers: apiHeaders(token) });
+  let page = 1;
+  const pageSize = 200;
 
-  if (!response.ok) return null;
+  while (true) {
+    const url = `${IDOKLAD_API_BASE}/Contacts?page=${page}&pagesize=${pageSize}`;
+    const response = await fetch(url, { headers: apiHeaders(token) });
 
-  const data = await response.json();
-  // iDoklad wraps list responses in { Data: { Items: [...] } } or { Data: [...] }
-  const unwrapped = data.Data || data;
-  const items = unwrapped.Items || (Array.isArray(unwrapped) ? unwrapped : []);
+    if (!response.ok) return null;
 
-  if (Array.isArray(items) && items.length > 0) {
-    return items[0];
+    const data = await response.json();
+    const unwrapped = data.Data || data;
+    const items: IdokladContact[] = unwrapped.Items || (Array.isArray(unwrapped) ? unwrapped : []);
+
+    const match = items.find(
+      (c) => c.IdentificationNumber && c.IdentificationNumber === ico
+    );
+    if (match) return match;
+
+    // No more pages
+    if (items.length < pageSize) break;
+    page++;
+  }
+
+  return null;
+}
+
+/**
+ * Search for a contact by company name.
+ */
+async function findContactByName(
+  token: string,
+  name: string
+): Promise<IdokladContact | null> {
+  let page = 1;
+  const pageSize = 200;
+  const normalized = name.trim().toLowerCase();
+
+  while (true) {
+    const url = `${IDOKLAD_API_BASE}/Contacts?page=${page}&pagesize=${pageSize}`;
+    const response = await fetch(url, { headers: apiHeaders(token) });
+
+    if (!response.ok) return null;
+
+    const data = await response.json();
+    const unwrapped = data.Data || data;
+    const items: IdokladContact[] = unwrapped.Items || (Array.isArray(unwrapped) ? unwrapped : []);
+
+    const match = items.find(
+      (c) => c.CompanyName && c.CompanyName.trim().toLowerCase() === normalized
+    );
+    if (match) return match;
+
+    if (items.length < pageSize) break;
+    page++;
   }
 
   return null;
@@ -162,8 +204,15 @@ async function findOrCreateContact(
 ): Promise<number> {
   const supplierName = supplier.name || "Neznámý dodavatel";
 
+  // Try to find by IČO first
   if (supplier.ico) {
     const existing = await findContactByIco(token, supplier.ico);
+    if (existing) return existing.Id;
+  }
+
+  // Fallback: try to find by company name
+  if (supplier.name) {
+    const existing = await findContactByName(token, supplier.name);
     if (existing) return existing.Id;
   }
 
