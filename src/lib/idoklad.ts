@@ -300,11 +300,14 @@ export async function sendToIdoklad(
 
   const defaultBody = await defaultRes.json();
   // iDoklad wraps responses in { Data: {...}, IsSuccess: true }
-  const payload = defaultBody.Data || defaultBody;
+  const defaults = defaultBody.Data || defaultBody;
 
-  // Override with our data
-  payload.PartnerId = supplierId;
-  payload.Items = items;
+  // Build payload from defaults + our overrides as a clean plain object
+  const payload: Record<string, unknown> = {
+    ...defaults,
+    PartnerId: supplierId,
+    Items: items,
+  };
 
   if (data.invoice_number) payload.DocumentNumber = data.invoice_number;
   if (data.variable_symbol) payload.VariableSymbol = data.variable_symbol;
