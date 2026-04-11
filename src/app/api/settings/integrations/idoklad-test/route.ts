@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { decrypt } from "@/lib/encryption";
-import { getIdokladToken } from "@/lib/idoklad";
+import { getIdokladToken, IDOKLAD_API_BASE } from "@/lib/idoklad";
 
 export async function POST(request: Request) {
   const supabase = createServerSupabaseClient();
@@ -48,7 +48,7 @@ export async function POST(request: Request) {
     let companyName = "";
     try {
       const companyRes = await fetch(
-        "https://app.idoklad.cz/api/v3/Companies/Default",
+        `${IDOKLAD_API_BASE}/Companies/Default`,
         {
           headers: {
             Authorization: `Bearer ${token}`,

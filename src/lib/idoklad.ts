@@ -7,8 +7,8 @@ interface IdokladCredentials {
 }
 
 const IDOKLAD_TOKEN_URL =
-  "https://app.idoklad.cz/identity/server/connect/token";
-const IDOKLAD_API_BASE = "https://app.idoklad.cz/api/v3";
+  "https://identity.idoklad.cz/server/connect/token";
+export const IDOKLAD_API_BASE = "https://api.idoklad.cz/v3";
 
 /**
  * Load iDoklad credentials for a given user from user_integrations table.
